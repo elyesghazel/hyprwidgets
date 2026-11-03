@@ -1,47 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 64 64">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#34373f"/>
-      <stop offset="1" stop-color="#121317"/>
-    </linearGradient>
-    <linearGradient id="sky" x1="0.2" y1="0" x2="0.8" y2="1">
-      <stop offset="0" stop-color="#5aa2f0"/>
-      <stop offset="1" stop-color="#2463c4"/>
-    </linearGradient>
-    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.09"/>
-    </linearGradient>
-    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
-      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    <linearGradient id="cool" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#89b4fa"/>
+      <stop offset=".55" stop-color="#b4befe"/>
+      <stop offset="1" stop-color="#cba6f7"/>
     </linearGradient>
   </defs>
-
-  <!-- app tile -->
-  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
-  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#sheen)"/>
-  <rect x="65.5" y="65.5" width="893" height="893" rx="198.5" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3"/>
-
-  <!-- clock -->
-  <rect x="200" y="200" width="292" height="292" rx="64" fill="url(#glass)"/>
-  <circle cx="346" cy="346" r="92" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="10"/>
-  <line x1="346" y1="346" x2="346" y2="284" stroke="#ffffff" stroke-width="18" stroke-linecap="round"/>
-  <line x1="346" y1="346" x2="392" y2="368" stroke="#ffffff" stroke-width="18" stroke-linecap="round"/>
-  <circle cx="346" cy="346" r="13" fill="#0a84ff"/>
-
-  <!-- weather -->
-  <rect x="532" y="200" width="292" height="292" rx="64" fill="url(#sky)"/>
-  <circle cx="634" cy="306" r="46" fill="#ffd54a"/>
-  <rect x="640" y="318" width="132" height="66" rx="33" fill="#ffffff" fill-opacity="0.95"/>
-  <circle cx="694" cy="322" r="40" fill="#ffffff" fill-opacity="0.95"/>
-
-  <!-- agenda -->
-  <rect x="200" y="532" width="624" height="292" rx="64" fill="url(#glass)"/>
-  <rect x="252" y="590" width="14" height="72" rx="7" fill="#ff9f0a"/>
-  <rect x="292" y="596" width="300" height="26" rx="13" fill="#ffffff" fill-opacity="0.92"/>
-  <rect x="292" y="636" width="190" height="20" rx="10" fill="#ffffff" fill-opacity="0.38"/>
-  <rect x="252" y="696" width="14" height="72" rx="7" fill="#ff453a"/>
-  <rect x="292" y="702" width="236" height="26" rx="13" fill="#ffffff" fill-opacity="0.92"/>
-  <rect x="292" y="742" width="150" height="20" rx="10" fill="#ffffff" fill-opacity="0.38"/>
+  <rect width="64" height="64" rx="14" fill="#0e0e14"/>
+  <!-- a tall card with zunder's caret -->
+  <rect x="11" y="11" width="19" height="42" rx="5" fill="url(#cool)"/>
+  <polyline points="17,26 24,32 17,38" fill="none" stroke="#0e0e14" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- a filled small card -->
+  <rect x="34" y="11" width="19" height="19" rx="5" fill="url(#cool)" fill-opacity=".55"/>
+  <!-- an outlined card with a "Title ───" heading -->
+  <rect x="35" y="35" width="17" height="17" rx="4.5" fill="#1b1b27" stroke="#45475a" stroke-width="2"/>
+  <line x1="39" y1="41" x2="42.5" y2="41" stroke="#b4befe" stroke-width="2.4" stroke-linecap="round"/>
+  <line x1="45.5" y1="41" x2="48" y2="41" stroke="#45475a" stroke-width="1.6" stroke-linecap="round"/>
+  <line x1="39" y1="46.5" x2="46" y2="46.5" stroke="#5a5a6a" stroke-width="1.6" stroke-linecap="round"/>
 </svg>

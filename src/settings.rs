@@ -104,7 +104,7 @@ fn repaint(cfg: &Config) {
 }
 
 const PAGES: &[(&str, &str, &str)] = &[
-    ("look", "Look", "\u{f53f}"),
+    ("look", "Look", "\u{f03d8}"),
     ("widgets", "Widgets", "\u{f009}"),
     ("calendars", "Calendars", "\u{f073}"),
     ("setup", "Setup", "\u{f013}"),

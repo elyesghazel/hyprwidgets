@@ -4,12 +4,12 @@
 
 <h1 align="center">hyprwidgets</h1>
 
-<p align="center">Interactive desktop widgets for Hyprland. They sit on your wallpaper and show up when a workspace is empty.</p>
+<p align="center">Interactive desktop widgets for Hyprland, in the look of <a href="https://github.com/elyesghazel/zunder">zunder</a>. They sit on your wallpaper and show up when a workspace is empty.</p>
 
 <p align="center"><b>Install:</b> <code>curl -fsSL https://raw.githubusercontent.com/elyesghazel/hyprwidgets/main/get.sh | sh</code></p>
 
 <p align="center">
-  <img src="assets/screenshot.png" width="380" alt="Clock, weather, calendar and reminders widgets">
+  <img src="assets/screenshot.png" width="620" alt="Clock, weather, calendar, reminders and Pulse widgets">
 </p>
 
 - **Clock**: time, date and week number
@@ -57,6 +57,8 @@ hyprwidgets setup
 </details>
 
 ## Settings
+
+<p align="center"><img src="assets/settings.png" width="620" alt="The settings window"></p>
 
 Open **Hyprwidgets Settings** from your launcher, run `hyprwidgets settings`, right-click a card and pick **Settings…**, or start `hyprwidgets` again while it's running.
 

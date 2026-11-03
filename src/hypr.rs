@@ -62,9 +62,13 @@ pub fn snapshot() -> Monitors {
         .collect()
 }
 
-fn socket_path() -> Option<PathBuf> {
+fn socket_dir() -> Option<PathBuf> {
     let sig = std::env::var_os("HYPRLAND_INSTANCE_SIGNATURE")?;
-    Some(dirs::runtime_dir()?.join("hypr").join(sig).join(".socket2.sock"))
+    Some(dirs::runtime_dir()?.join("hypr").join(sig))
+}
+
+fn socket_path() -> Option<PathBuf> {
+    Some(socket_dir()?.join(".socket2.sock"))
 }
 
 /// Sends a fresh snapshot on start and after every relevant event, forever. Reconnects when

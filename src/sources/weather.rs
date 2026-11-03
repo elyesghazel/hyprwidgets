@@ -14,7 +14,28 @@ pub struct Weather {
     pub low: f64,
     pub code: i64,
     pub is_day: bool,
+    /// The next hours, starting with this one.
+    pub hours: Vec<Hour>,
+    /// Today and the next days.
+    pub days: Vec<Day>,
     pub error: Option<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Hour {
+    /// "14"
+    pub hour: String,
+    pub temp: f64,
+    pub code: i64,
+    pub is_day: bool,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Day {
+    pub date: chrono::NaiveDate,
+    pub high: f64,
+    pub low: f64,
+    pub code: i64,
 }
 
 #[derive(Deserialize)]
@@ -33,6 +54,15 @@ struct Place {
 struct Forecast {
     current: Current,
     daily: Daily,
+    hourly: Hourly,
+}
+
+#[derive(Deserialize)]
+struct Hourly {
+    time: Vec<String>,
+    temperature_2m: Vec<f64>,
+    weather_code: Vec<i64>,
+    is_day: Vec<i64>,
 }
 
 #[derive(Deserialize)]
@@ -44,6 +74,8 @@ struct Current {
 
 #[derive(Deserialize)]
 struct Daily {
+    time: Vec<String>,
+    weather_code: Vec<i64>,
     temperature_2m_max: Vec<f64>,
     temperature_2m_min: Vec<f64>,
 }
@@ -92,8 +124,29 @@ fn fetch(cfg: &Cfg, place: &str, lat: f64, lon: f64) -> Result<Weather, String> 
     let unit = if cfg.fahrenheit { "&temperature_unit=fahrenheit" } else { "" };
     let f: Forecast = get(&format!(
         "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,weather_code,is_day\
-         &daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=2{unit}"
+         &hourly=temperature_2m,weather_code,is_day&forecast_hours=7\
+         &daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=6{unit}"
     ))?;
+    let h = &f.hourly;
+    let hours = (0..h.time.len().min(h.temperature_2m.len()).min(h.weather_code.len()).min(h.is_day.len()))
+        .map(|i| Hour {
+            hour: h.time[i].get(11..13).unwrap_or("").to_string(),
+            temp: h.temperature_2m[i],
+            code: h.weather_code[i],
+            is_day: h.is_day[i] == 1,
+        })
+        .collect();
+    let d = &f.daily;
+    let days = (0..d.time.len().min(d.weather_code.len()).min(d.temperature_2m_max.len()).min(d.temperature_2m_min.len()))
+        .filter_map(|i| {
+            Some(Day {
+                date: chrono::NaiveDate::parse_from_str(&d.time[i], "%Y-%m-%d").ok()?,
+                high: d.temperature_2m_max[i],
+                low: d.temperature_2m_min[i],
+                code: d.weather_code[i],
+            })
+        })
+        .collect();
     Ok(Weather {
         place: place.into(),
         temp: f.current.temperature_2m,
@@ -101,6 +154,8 @@ fn fetch(cfg: &Cfg, place: &str, lat: f64, lon: f64) -> Result<Weather, String> 
         is_day: f.current.is_day == 1,
         high: f.daily.temperature_2m_max.first().copied().unwrap_or(0.0),
         low: f.daily.temperature_2m_min.first().copied().unwrap_or(0.0),
+        hours,
+        days,
         error: None,
     })
 }

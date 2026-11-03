@@ -12,11 +12,20 @@
 
 - **Clock**: time, date and week number
 - **Weather**: current conditions, high and low from Open-Meteo (no API key)
-- **Calendar**: today and the next days from any iCal feed (Google, iCloud, Outlook, Proton, Fastmail), recurring events included. Click to open the day.
+- **Calendar**: a month you can page through, with a dot on every day that has something. Click a day to see its events, double-click it (or the month name) to open your calendar. Medium shows what's next, Small today's date and the next event. Reads any iCal feed (Google, iCloud, Outlook, Proton, Fastmail), recurring events included. (`agenda` is the same widget, starting at Medium.)
 - **Reminders**: Apple Reminders. Tick them off, or add new ones right on the desktop.
 - **Now playing**: any MPRIS player (Spotify, Firefox, Chrome, mpv), with art, progress and controls
+- **Pulse**: recovery, sleep and strain rings from a [Pulse](https://github.com/adityaongit/pulse) health dashboard, or anything that prints the same JSON
 
 Each monitor gets its own set. They fade out as soon as a window opens on that workspace and fade back in when it's empty again, so they never get in the way.
+
+**A grid, like iPad widgets.** The desktop is a grid of cells and every widget comes in fixed sizes: Mini (1×1), Small (2×2), Medium (4×2) and Large (4×4). Any 4×4 area holds one Large widget, two Medium or four Small ones. Each size has its own layout: the weather adds an hourly forecast at Medium and five days at Large, Pulse goes from one ring to three rings and the numbers behind them.
+
+- **Move** a card by dragging it. It follows the pointer and lands on the nearest free cells (a dashed outline shows where).
+- **Resize** it by dragging its bottom-right corner, or right-click it and pick a size. It steps between the sizes that widget has.
+- **Collapse** it with the arrow in its corner (or the right-click menu). It shrinks to a one-row strip showing the time, the next event or "3 open". Click the strip to open it again.
+
+All of that is remembered in `~/.local/state/hyprwidgets/layout.json`.
 
 ## Install
 
@@ -44,7 +53,8 @@ Every key is optional and explained in [`config.example.toml`](config.example.to
 
 ```toml
 widgets = ["clock", "weather", "calendar", "reminders", "media"]
-position = "top-left"     # top-right, bottom-left, bottom-right, left, right, center
+position = "top-left"     # the corner new widgets fill from; drag cards to move them
+style = "glass"           # frosted, solid
 show = "empty"            # "always" keeps them up behind your windows
 
 [weather]
@@ -66,7 +76,7 @@ hl.layer_rule({
     name         = "hyprwidgets",
     match        = { namespace = "^hyprwidgets$" },
     blur         = true,
-    ignore_alpha = 0.3,
+    ignore_alpha = 0.2,
     no_anim      = true,
 })
 ```
@@ -77,7 +87,7 @@ hl.layer_rule({
 exec-once = hyprwidgets
 
 layerrule = blur, hyprwidgets
-layerrule = ignorealpha 0.3, hyprwidgets
+layerrule = ignorealpha 0.2, hyprwidgets
 layerrule = noanim, hyprwidgets
 ```
 
@@ -104,7 +114,7 @@ Repeat for every calendar you want, each with its own `[[calendar.sources]]` blo
 
 Work or school Google accounts sometimes have the secret address turned off by the admin. In that case use **Settings → Import & export → Export** and point `url` at the downloaded `.ics` file (it won't update by itself).
 
-Google refreshes these feeds every few hours, so a new event can take a while to show up. A click on the card opens the day in Google Calendar; change `open` under `[calendar]` to use something else.
+Google refreshes these feeds every few hours, so a new event can take a while to show up. A double click on a day opens it in Google Calendar; change `open` under `[calendar]` to use something else, or set `open_command` to run a program instead (your own calendar popup, for example).
 
 ### 4. iCloud, Outlook and other calendars
 
@@ -149,6 +159,28 @@ If the card says **iCloud timed out (keyring locked?)**: pyicloud is waiting for
 
 Install `playerctl`. Spotify, Firefox, Chromium-based browsers and most music players work out of the box. mpv needs the [mpv-mpris](https://github.com/hoyon/mpv-mpris) plugin. The card hides itself while nothing is playing (`hide_when_idle`).
 
+### 7. Pulse
+
+The Pulse card runs a command every 15 minutes and reads one line of JSON from it. Every key is optional:
+
+```json
+{"recovery": 72, "band": "green", "hrv": 59, "rhr": 54,
+ "sleep_min": 454, "sleep_perf": 82, "debt_min": 45,
+ "strain": 6.7, "strain_low": 8, "strain_high": 12, "energy": 64,
+ "help": {"label": "HEART_RATE_VARIABILITY", "points": 12},
+ "drag": {"label": "SLEEP_QUALITY", "points": -3}}
+```
+
+Recovery and sleep performance are 0-100, strain is 0-21. If Pulse runs on a server, a script there can read its `daily_scores` table and print this, and the command is just `ssh`:
+
+```toml
+widgets = ["clock", "weather", "calendar", "pulse"]
+
+[pulse]
+command = "ssh myserver pulse-widget"
+open = "https://pulse.example.com"
+```
+
 ## Styling
 
 The look is built in, with light and dark variants (`appearance = "auto"` follows the GNOME color scheme). To change anything, put CSS in `~/.config/hyprwidgets/style.css`. It loads on top of the [built-in stylesheet](src/style.css), so you can use the same class names:
@@ -161,10 +193,32 @@ The look is built in, with light and dark variants (`appearance = "auto"` follow
 .card.weather { background-image: linear-gradient(170deg, #ff9a62, #e4547a); }
 ```
 
-Classes: `.card` plus `.clock`, `.weather`, `.calendar`, `.reminders`, `.media`, and `.small` / `.wide`. The window has `.dark` or `.light`.
+Classes: `.card` plus `.clock`, `.weather`, `.calendar`, `.agenda`, `.reminders`, `.media`, `.pulse`, and `.mini` / `.small` / `.medium` / `.large`. A collapsed card is `.card.pill`. The window has `.dark` or `.light` and `.glass`, `.frosted` or `.solid`.
+
+## Writing a widget
+
+Every widget implements one trait and is listed once in [`src/widgets/mod.rs`](src/widgets/mod.rs):
+
+```rust
+pub trait Widget {
+    fn title(&self) -> &'static str;                       // shown when collapsed
+    fn icon(&self) -> &'static str;                        // symbolic icon name
+    fn sizes(&self) -> &'static [Size];                    // the first is the default
+    fn build(&self, ctx: &Ctx, size: Size) -> gtk::Widget; // one card, per monitor and size
+    fn summary(&self, ctx: &Ctx, label: &gtk::Label) {}    // the collapsed line
+}
+
+pub const REGISTRY: &[(&str, Constructor)] = &[
+    ("clock", clock::new),
+    // ("yours", yours::new),
+];
+```
+
+`new` starts the widget's data source (a thread that sends into a `Shared<T>`) and returns the widget; `build` lays out a card for the given size (`card(name, size)` gives you an empty one of exactly that size) and binds labels to that `Shared<T>`. [`clock.rs`](src/widgets/clock.rs) is the smallest example, [`pulse.rs`](src/widgets/pulse.rs) one with a background source.
 
 ## Troubleshooting
 
+- **A card is stuck somewhere odd**: delete `~/.local/state/hyprwidgets/layout.json` and restart.
 - **Nothing shows**: the widgets only appear on workspaces without windows. Switch to an empty one, or set `show = "always"`. Run `hyprwidgets` in a terminal to see errors.
 - **Wrong monitor**: `monitors = ["DP-1"]` limits them to the listed outputs (`hyprctl monitors` shows the names).
 - **Calendar is empty or says it can't load**: open the `.ics` address in a browser. It should download a file starting with `BEGIN:VCALENDAR`.

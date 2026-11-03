@@ -2,13 +2,55 @@ use chrono::Local;
 use gtk4 as gtk;
 use gtk4::prelude::*;
 
-use super::{Hub, Size, card, clear, label};
-use crate::sources::reminders::{Cmd, Reminder};
+use super::{Ctx, Size, Widget, card, clear, label};
+use crate::shared::Shared;
+use crate::sources::reminders::{self, Cmd, Reminder, State};
+
+pub struct Reminders {
+    data: Shared<State>,
+    cmd: async_channel::Sender<Cmd>,
+}
+
+pub fn new(ctx: &Ctx) -> Option<Box<dyn Widget>> {
+    if !ctx.cfg.reminders.enabled {
+        return None;
+    }
+    let data = Shared::new();
+    let (tx, rx) = async_channel::unbounded();
+    let cmd = reminders::watch(ctx.cfg.reminders.clone(), tx);
+    data.feed(rx);
+    Some(Box::new(Reminders { data, cmd }))
+}
+
+impl Widget for Reminders {
+    fn title(&self) -> &'static str {
+        "Reminders"
+    }
+    fn icon(&self) -> &'static str {
+        "checkbox-checked-symbolic"
+    }
+    fn sizes(&self) -> &'static [Size] {
+        &[Size::Large, Size::Medium, Size::Small]
+    }
+    fn build(&self, ctx: &Ctx, size: Size) -> gtk::Widget {
+        build(ctx, &self.data, self.cmd.clone(), size)
+    }
+    fn summary(&self, _: &Ctx, l: &gtk::Label) {
+        self.data.bind(l, |l, s| {
+            l.set_text(&match (s.items.len(), &s.error) {
+                (0, Some(_)) => "Can't load".into(),
+                (0, None) => "All done".into(),
+                (n, _) => format!("{n} open"),
+            })
+        });
+    }
+}
 
 /// Open reminders with a tick circle each, and a field to add one.
-pub fn build(hub: &Hub) -> gtk::Widget {
-    let c = card("reminders", Size::Wide);
-    let cmd = hub.reminders_cmd.clone().expect("reminders enabled");
+/// Large: the list with tick circles and a field to add one. Medium: the first two with ticks.
+/// Small: the count and the first titles.
+fn build(hub: &Ctx, data: &Shared<State>, cmd: async_channel::Sender<Cmd>, size: Size) -> gtk::Widget {
+    let c = card("reminders", size);
 
     let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     let title = label("Reminders", "card-title orange");
@@ -39,7 +81,9 @@ pub fn build(hub: &Hub) -> gtk::Widget {
             }
         });
     }
-    c.append(&entry);
+    if size == Size::Large {
+        c.append(&entry);
+    }
 
     {
         let cmd = cmd.clone();
@@ -48,8 +92,13 @@ pub fn build(hub: &Hub) -> gtk::Widget {
         });
     }
 
-    let max = hub.cfg.reminders.max_items;
-    hub.reminders.bind(&c, move |_, state| {
+    let max = match size {
+        Size::Large => hub.cfg.reminders.max_items.min(5),
+        Size::Medium => 2,
+        _ => 3,
+    };
+    let small = size == Size::Small;
+    data.bind(&c, move |_, state| {
         if state.loading { spinner.start() } else { spinner.stop() }
         spinner.set_visible(state.loading);
         count.set_text(&state.items.len().to_string());
@@ -64,7 +113,11 @@ pub fn build(hub: &Hub) -> gtk::Widget {
             list.append(&done);
         }
         for r in state.items.iter().take(max) {
-            list.append(&row(r, &cmd));
+            if small {
+                list.append(&label(&r.title, "rem-title small-row"));
+            } else {
+                list.append(&row(r, &cmd));
+            }
         }
         if state.items.len() > max {
             list.append(&label(&format!("{} more", state.items.len() - max), "small dim more"));

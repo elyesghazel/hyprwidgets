@@ -5,23 +5,66 @@ use gtk4 as gtk;
 use gtk4::prelude::*;
 use gtk4::{gdk, gio};
 
-use super::{Hub, Size, card, label};
-use crate::sources::media::{Track, control};
+use super::{Ctx, Size, Widget, card, label};
+use crate::shared::Shared;
+use crate::sources::media::{self, Track, control};
 
-pub fn build(hub: &Hub) -> gtk::Widget {
-    let c = card("media", Size::Wide);
+pub struct Media {
+    data: Shared<Track>,
+}
+
+pub fn new(_: &Ctx) -> Option<Box<dyn Widget>> {
+    let data = Shared::new();
+    let (tx, rx) = async_channel::unbounded();
+    media::watch(tx);
+    data.feed(rx);
+    Some(Box::new(Media { data }))
+}
+
+impl Widget for Media {
+    fn title(&self) -> &'static str {
+        "Now Playing"
+    }
+    fn icon(&self) -> &'static str {
+        "audio-x-generic-symbolic"
+    }
+    fn sizes(&self) -> &'static [Size] {
+        &[Size::Medium, Size::Small]
+    }
+    fn build(&self, ctx: &Ctx, size: Size) -> gtk::Widget {
+        build(ctx, &self.data, size)
+    }
+    fn summary(&self, _: &Ctx, l: &gtk::Label) {
+        self.data.bind(l, |l, t| {
+            l.set_text(&if !t.active() {
+                "Not playing".into()
+            } else if t.artist.is_empty() {
+                t.title.clone()
+            } else {
+                format!("{} · {}", t.title, t.artist)
+            })
+        });
+    }
+}
+
+/// Medium: art, title and controls side by side, progress below. Small: art and the play
+/// button on top, the title under it.
+fn build(hub: &Ctx, data: &Shared<Track>, size: Size) -> gtk::Widget {
+    let small = size == Size::Small;
+    let c = card("media", size);
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 14);
     c.append(&row);
+    let art_px = if small { 58 } else { 84 };
 
     let art = gtk::Picture::new();
     art.set_content_fit(gtk::ContentFit::Cover);
-    art.set_size_request(76, 76);
+    art.set_size_request(art_px, art_px);
     art.set_can_shrink(true);
     let art_frame = gtk::Overlay::new();
     art_frame.add_css_class("media-art");
     art_frame.set_overflow(gtk::Overflow::Hidden);
-    art_frame.set_size_request(76, 76);
-    art_frame.set_valign(gtk::Align::Center);
+    art_frame.set_size_request(art_px, art_px);
+    art_frame.set_valign(gtk::Align::Start);
     let fallback = gtk::Image::from_icon_name("audio-x-generic-symbolic");
     fallback.set_pixel_size(28);
     art_frame.set_child(Some(&fallback));
@@ -37,7 +80,6 @@ pub fn build(hub: &Hub) -> gtk::Widget {
     info.append(&player);
     info.append(&title);
     info.append(&artist);
-    row.append(&info);
 
     let progress = gtk::ProgressBar::new();
     progress.add_css_class("media-progress");
@@ -47,8 +89,8 @@ pub fn build(hub: &Hub) -> gtk::Widget {
     times.set_start_widget(Some(&elapsed));
     times.set_end_widget(Some(&remaining));
 
-    let controls = gtk::Box::new(gtk::Orientation::Horizontal, 18);
-    controls.set_halign(gtk::Align::Center);
+    let controls = gtk::Box::new(gtk::Orientation::Horizontal, if small { 0 } else { 10 });
+    controls.set_halign(if small { gtk::Align::End } else { gtk::Align::Start });
     controls.add_css_class("media-controls");
     let current: Rc<RefCell<Track>> = Rc::default();
     let button = |icon: &str, action: &'static str| {
@@ -60,14 +102,33 @@ pub fn build(hub: &Hub) -> gtk::Widget {
         controls.append(&b);
         b
     };
-    button("media-skip-backward-symbolic", "previous");
+    if !small {
+        button("media-skip-backward-symbolic", "previous");
+    }
     let play = button("media-playback-start-symbolic", "play-pause");
     play.add_css_class("media-play");
-    button("media-skip-forward-symbolic", "next");
+    if !small {
+        button("media-skip-forward-symbolic", "next");
+    }
 
-    c.append(&progress);
-    c.append(&times);
-    c.append(&controls);
+    if small {
+        let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        spacer.set_hexpand(true);
+        row.append(&spacer);
+        controls.set_valign(gtk::Align::Start);
+        row.append(&controls);
+        info.set_valign(gtk::Align::End);
+        info.set_vexpand(true);
+        player.set_visible(false);
+        c.append(&info);
+        c.append(&progress);
+        times.set_visible(false);
+    } else {
+        info.append(&controls);
+        row.append(&info);
+        c.append(&progress);
+        c.append(&times);
+    }
 
     let hide_idle = hub.cfg.media.hide_when_idle;
     // no player at all means no update ever arrives, so start hidden
@@ -77,7 +138,7 @@ pub fn build(hub: &Hub) -> gtk::Widget {
         let current = current.clone();
         let progress = progress.clone();
         let (elapsed, remaining) = (elapsed.clone(), remaining.clone());
-        hub.media.bind(&c, move |c, t| {
+        data.bind(&c, move |c, t| {
             *current.borrow_mut() = t.clone();
             c.set_visible(t.active() || !hide_idle);
             player.set_text(&pretty_player(&t.player).to_uppercase());
@@ -98,8 +159,10 @@ pub fn build(hub: &Hub) -> gtk::Widget {
 fn tick(t: &Track, progress: &gtk::ProgressBar, elapsed: &gtk::Label, remaining: &gtk::Label) {
     let visible = t.length > 0.0;
     progress.set_visible(visible);
-    elapsed.set_visible(visible);
-    remaining.set_visible(visible);
+    if elapsed.parent().is_some_and(|p| p.is_visible()) {
+        elapsed.set_visible(visible);
+        remaining.set_visible(visible);
+    }
     if visible {
         let pos = t.position_now();
         progress.set_fraction((pos / t.length).clamp(0.0, 1.0));

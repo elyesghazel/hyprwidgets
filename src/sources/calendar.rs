@@ -4,10 +4,11 @@ use std::collections::HashSet;
 use std::io::BufReader;
 use std::time::Duration;
 
-use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Local, Months, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use ical::parser::ical::component::IcalEvent;
 
 use crate::config::{self, Calendar, CalendarSource};
+use crate::shared::Shared;
 
 #[derive(Clone, Debug)]
 pub struct Event {
@@ -24,6 +25,23 @@ pub struct Event {
 pub struct Agenda {
     pub events: Vec<Event>,
     pub error: Option<String>,
+}
+
+impl Event {
+    /// Still running or ahead.
+    pub fn upcoming(&self, now: &DateTime<Local>) -> bool {
+        self.end > *now || (self.all_day && self.end.date_naive() > now.date_naive())
+    }
+
+    /// Takes place (at least partly) on `day`.
+    pub fn on(&self, day: NaiveDate) -> bool {
+        let last = if self.all_day || self.end.time() == chrono::NaiveTime::MIN {
+            (self.end - chrono::Duration::seconds(1)).date_naive()
+        } else {
+            self.end.date_naive()
+        };
+        self.start.date_naive() <= day && day <= last.max(self.start.date_naive())
+    }
 }
 
 /// Apple's calendar colours, handed out in order to sources without one.
@@ -47,11 +65,34 @@ pub fn watch(cfg: Calendar, tx: async_channel::Sender<Agenda>) {
     });
 }
 
+thread_local! {
+    static SHARED: std::cell::OnceCell<Shared<Agenda>> = const { std::cell::OnceCell::new() };
+}
+
+/// The events, fetched once however many widgets show them.
+pub fn shared(cfg: &Calendar) -> Shared<Agenda> {
+    SHARED.with(|s| {
+        s.get_or_init(|| {
+            let data = Shared::new();
+            let (tx, rx) = async_channel::unbounded();
+            watch(cfg.clone(), tx);
+            data.feed(rx);
+            data
+        })
+        .clone()
+    })
+}
+
+/// Everything from the start of last month to three months ahead (or `days`, if further), so the
+/// month view can page around. Past events stay in; the agenda drops them itself.
 fn fetch(cfg: &Calendar) -> Agenda {
     let now = Local::now();
-    let from = now.date_naive().and_hms_opt(0, 0, 0).unwrap();
-    let from = Local.from_local_datetime(&from).earliest().unwrap_or(now);
-    let until = from + chrono::Duration::days(cfg.days.max(1));
+    let today = now.date_naive();
+    let first = today.with_day(1).unwrap();
+    let start = first.checked_sub_months(Months::new(1)).unwrap_or(first);
+    let end = (first.checked_add_months(Months::new(3)).unwrap_or(first)).max(today + chrono::Duration::days(cfg.days.max(1)));
+    let local = |d: NaiveDate| Local.from_local_datetime(&d.and_hms_opt(0, 0, 0).unwrap()).earliest().unwrap_or(now);
+    let (from, until) = (local(start), local(end));
     let mut events = Vec::new();
     let mut errors = Vec::new();
     for (i, source) in cfg.sources.iter().enumerate() {
@@ -61,8 +102,6 @@ fn fetch(cfg: &Calendar) -> Agenda {
             Err(e) => errors.push(format!("{}: {e}", source.name)),
         }
     }
-    // keep anything that hasn't ended yet
-    events.retain(|e| e.end > now || (e.all_day && e.end.date_naive() >= now.date_naive()));
     events.sort_by_key(|e| (e.start.date_naive(), !e.all_day, e.start));
     Agenda { events, error: errors.first().cloned() }
 }

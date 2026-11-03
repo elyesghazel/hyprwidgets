@@ -1,0 +1,10 @@
+/* GTK themes (Catppuccin, GNOME apps' styles) use some of the same class names, e.g.
+   .clock-time; nothing of theirs should reach in here */
+.hyprwidgets label {
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  min-height: 0;
+}

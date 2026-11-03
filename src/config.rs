@@ -16,6 +16,8 @@ pub struct Config {
     pub margin: i32,
     /// dark, light, or auto (follows the GNOME color-scheme setting).
     pub appearance: String,
+    /// glass (clear, lets the wallpaper through), frosted, or solid.
+    pub style: String,
     /// "empty" shows the widgets only on workspaces without windows, "always" keeps them up.
     pub show: String,
     /// Monitor connector names (DP-1, HDMI-A-2). Empty means every monitor.
@@ -27,6 +29,7 @@ pub struct Config {
     pub calendar: Calendar,
     pub reminders: Reminders,
     pub media: Media,
+    pub pulse: Pulse,
 }
 
 impl Default for Config {
@@ -36,6 +39,7 @@ impl Default for Config {
             position: "top-left".into(),
             margin: 40,
             appearance: "auto".into(),
+            style: "glass".into(),
             show: "empty".into(),
             monitors: Vec::new(),
             workspaces: Vec::new(),
@@ -44,6 +48,7 @@ impl Default for Config {
             calendar: Calendar::default(),
             reminders: Reminders::default(),
             media: Media::default(),
+            pulse: Pulse::default(),
         }
     }
 }
@@ -89,6 +94,8 @@ pub struct Calendar {
     pub refresh: u64,
     /// What a click on an event or the header opens.
     pub open: String,
+    /// A command to run instead of opening `open`, e.g. your own calendar popup.
+    pub open_command: String,
 }
 
 impl Default for Calendar {
@@ -99,6 +106,7 @@ impl Default for Calendar {
             max_events: 5,
             refresh: 10,
             open: "https://calendar.google.com/calendar/r/day/{y}/{m}/{d}".into(),
+            open_command: String::new(),
         }
     }
 }
@@ -150,6 +158,23 @@ pub struct Media {
 impl Default for Media {
     fn default() -> Self {
         Media { hide_when_idle: true }
+    }
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(default)]
+pub struct Pulse {
+    /// Prints the scores as one JSON line (see the README).
+    pub command: String,
+    /// Minutes between refreshes.
+    pub refresh: u64,
+    /// Opened on click.
+    pub open: String,
+}
+
+impl Default for Pulse {
+    fn default() -> Self {
+        Pulse { command: String::new(), refresh: 15, open: String::new() }
     }
 }
 

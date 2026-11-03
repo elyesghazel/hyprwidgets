@@ -28,25 +28,114 @@ window.hyprwidgets.light {
 
 /* ── cards ───────────────────────────────────────────── */
 .card {
-  border-radius: 22px;
+  border-radius: 24px;
   padding: 16px;
-  transition: background-color 150ms ease;
+  transition: background-color 150ms ease, opacity 150ms ease;
 }
-.dark .card {
+/* sizes come from the grid (layout.rs): mini 77, small 170, medium 356x170, large 356 */
+.card.mini { padding: 10px; border-radius: 20px; }
+
+/* glass (default): mostly clear, Hyprland's blur does the frosting. A light top edge and a
+   soft sheen read as a pane of glass, the way macOS widgets sit on the wallpaper. */
+.glass.dark .card {
+  background-color: rgba(22, 22, 26, 0.30);
+  background-image: linear-gradient(165deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.03) 42%, rgba(255, 255, 255, 0.0) 70%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    0 10px 28px rgba(0, 0, 0, 0.18);
+}
+.glass.light .card {
+  background-color: rgba(255, 255, 255, 0.34);
+  background-image: linear-gradient(165deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.10) 45%, rgba(255, 255, 255, 0.0) 75%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 12px 32px rgba(0, 0, 0, 0.14);
+}
+/* text over a see-through card needs a little help on busy wallpapers */
+.glass.dark .card label { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
+
+/* frosted: the earlier, denser look */
+.frosted.dark .card {
   background-color: rgba(30, 30, 32, 0.58);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 6px 18px rgba(0, 0, 0, 0.22);
 }
-.light .card {
+.frosted.light .card {
   background-color: rgba(255, 255, 255, 0.62);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 6px 18px rgba(0, 0, 0, 0.12);
 }
-.card.small {
-  min-width: 138px;   /* 170 with padding */
-  min-height: 138px;
+
+/* solid: no transparency at all */
+.solid.dark .card {
+  background-color: #1c1c1e;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 6px 18px rgba(0, 0, 0, 0.3);
 }
-.card.wide {
-  min-width: 324px;   /* two small cards and the gap */
+.solid.light .card {
+  background-color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05), 0 6px 18px rgba(0, 0, 0, 0.12);
 }
+
+/* ── frame: collapse button, collapsed pill, dragging ── */
+button.chrome {
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0;
+  margin: 8px;
+  border-radius: 999px;
+  border: none;
+  box-shadow: none;
+  background-color: rgba(0, 0, 0, 0.32);
+  color: white;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+button.chrome image { -gtk-icon-size: 12px; }
+.light button.chrome { background-color: rgba(255, 255, 255, 0.7); color: #1d1d1f; }
+.hw-frame:hover button.chrome { opacity: 1; }
+
+.resize-handle {
+  margin: 2px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.hw-frame:hover .resize-handle, .hw-frame.resizing .resize-handle { opacity: 0.9; }
+.light .resize-handle { color: #1d1d1f; }
+
+/* where a dragged card will land */
+.ghost {
+  border-radius: 24px;
+  border: 2px dashed rgba(255, 255, 255, 0.45);
+  background-color: rgba(255, 255, 255, 0.07);
+}
+.light .ghost { border-color: rgba(0, 0, 0, 0.3); background-color: rgba(0, 0, 0, 0.04); }
+
+/* right-click menu */
+popover.hw-menu > contents {
+  border-radius: 14px;
+  padding: 6px;
+  min-width: 170px;
+}
+.hw-menu-title { font-size: 11px; font-weight: 700; opacity: 0.6; margin: 4px 8px 4px 8px; }
+button.hw-menu-item { border-radius: 8px; padding: 6px 8px; min-height: 0; }
+button.hw-menu-item label { font-size: 13px; }
+popover.hw-menu separator { margin: 4px 6px; }
+button.chrome:hover { background-color: rgba(0, 0, 0, 0.5); }
+
+.card.pill {
+  min-height: 0;
+  padding: 11px 16px;
+  border-radius: 18px;
+}
+.card.pill.small { min-height: 0; }
+.pill-icon { -gtk-icon-size: 15px; opacity: 0.85; }
+.pill-title { font-size: 13px; font-weight: 700; }
+.pill-summary { font-size: 13px; font-weight: 500; }
+.card.pill.weather { background-image: linear-gradient(170deg, rgba(74, 144, 226, 0.75), rgba(38, 98, 186, 0.75)); color: white; }
+
+.hw-frame.lifted { opacity: 0.8; }
+.hw-frame.lifted .card { box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35); }
 
 /* ── type ────────────────────────────────────────────── */
 .eyebrow {
@@ -78,6 +167,8 @@ window.hyprwidgets.light {
   margin-bottom: -2px;
 }
 .clock-time.seconds { font-size: 29px; }
+.clock-time.mini { font-size: 21px; font-weight: 500; letter-spacing: -0.01em; }
+.clock-time.large { font-size: 58px; font-weight: 250; }
 .clock-date {
   font-size: 13px;
   font-weight: 500;
@@ -96,9 +187,17 @@ window.hyprwidgets.light {
 .weather-temp  { font-size: 40px; font-weight: 300; margin-top: -2px; }
 .weather-cond  { font-size: 12px; font-weight: 600; margin-top: 4px; }
 .weather-range { font-size: 12px; font-weight: 500; }
+.weather-temp.mini { font-size: 22px; font-weight: 500; margin-top: 0; }
+.weather-hours { margin-top: 6px; }
+.weather-hour { font-size: 13px; font-weight: 600; }
+.weather-sep { min-height: 1px; margin: 12px 0 8px 0; background-color: rgba(255, 255, 255, 0.18); }
+.weather-day { min-height: 30px; }
+.weather-day-name { font-size: 13px; font-weight: 600; }
+.weather-track { min-height: 4px; border-radius: 2px; background-color: rgba(255, 255, 255, 0.18); }
+.weather-fill { min-height: 4px; border-radius: 2px; background-image: linear-gradient(90deg, #8fd3ff, #ffd36b); }
 
 /* ── calendar ────────────────────────────────────────── */
-.card.calendar { min-height: 138px; }
+
 .cal-today { min-width: 88px; }
 .cal-day {
   font-size: 44px;
@@ -132,6 +231,7 @@ window.hyprwidgets.light {
 .light .rem-row { border-bottom: 1px solid rgba(0, 0, 0, 0.06); }
 .rem-row.leaving { opacity: 0.35; }
 .rem-title { font-size: 13px; }
+.rem-title.small-row { padding: 3px 0; }
 .more { margin-top: 6px; }
 
 button.rem-tick {
@@ -207,9 +307,65 @@ button.media-play image { -gtk-icon-size: 24px; }
 .light button.media-btn:hover { background-color: rgba(0, 0, 0, 0.06); }
 button.media-btn:active { transform: scale(0.92); }
 
+/* ── month calendar ──────────────────────────────────── */
+.cal-header { margin-bottom: 6px; }
+.cal-header .card-title { font-size: 16px; }
+button.cal-nav {
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0;
+  border-radius: 999px;
+  border: none;
+  box-shadow: none;
+  background: none;
+  color: inherit;
+}
+button.cal-nav image { -gtk-icon-size: 14px; }
+button.cal-home image { -gtk-icon-size: 8px; }
+.dark button.cal-nav:hover  { background-color: rgba(255, 255, 255, 0.1); }
+.light button.cal-nav:hover { background-color: rgba(0, 0, 0, 0.06); }
+.cal-weekday { font-size: 10.5px; font-weight: 700; margin-bottom: 2px; }
+.cal-cell {
+  min-width: 30px;
+  min-height: 30px;
+  border-radius: 999px;
+  transition: background-color 100ms ease;
+}
+.cal-num { font-size: 13px; font-weight: 500; margin-top: 4px; }
+.cal-cell.weekend .cal-num { opacity: 0.7; }
+.cal-cell.other .cal-num { opacity: 0.32; }
+.dark .cal-cell:hover  { background-color: rgba(255, 255, 255, 0.08); }
+.light .cal-cell:hover { background-color: rgba(0, 0, 0, 0.05); }
+.dark .cal-cell.selected  { background-color: rgba(255, 255, 255, 0.16); }
+.light .cal-cell.selected { background-color: rgba(0, 0, 0, 0.09); }
+.cal-cell.today, .dark .cal-cell.today, .light .cal-cell.today { background-color: #ff453a; }
+.cal-cell.today .cal-num { color: white; font-weight: 700; opacity: 1; }
+.cal-dots { min-height: 4px; }
+.cal-dot { min-width: 4px; min-height: 4px; border-radius: 2px; }
+.cal-cell.today .cal-dot { background-color: white; }
+.cal-day-title { margin-top: 6px; padding-top: 8px; }
+.dark .cal-day-title  { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.light .cal-day-title { border-top: 1px solid rgba(0, 0, 0, 0.07); }
+.cal-list { margin-top: 4px; }
+.cal-empty { padding: 2px 0; }
+
+/* ── pulse ───────────────────────────────────────────── */
+.pulse-rings { margin: 12px 0 8px 0; }
+.pulse-value { font-size: 16px; font-weight: 600; font-feature-settings: normal; }
+.pulse-value.tiny-value { font-size: 13px; }
+.pulse-value.big-value { font-size: 22px; }
+.pulse-side { font-weight: 600; margin-top: 6px; }
+.pulse-stats { margin-top: 4px; }
+.pulse-why { margin-top: 2px; font-weight: 500; }
+
 /* plain GTK bits that would otherwise pick up the system theme */
 .hyprwidgets tooltip { border-radius: 8px; }
 .hyprwidgets label { min-height: 0; }
 
 /* tabular figures pad a lone "1" to full width; the big numbers look better proportional */
 .clock-time, .cal-day, .weather-temp { font-feature-settings: normal; }
+
+.pulse-facts { margin: 4px 6px; }
+.pulse-fact { padding: 8px 10px; border-radius: 12px; background-color: rgba(255, 255, 255, 0.06); }
+.light .pulse-fact { background-color: rgba(0, 0, 0, 0.04); }
+.pulse-fact-value { font-size: 16px; font-weight: 600; margin-top: 2px; }

@@ -60,7 +60,7 @@ hyprwidgets setup
 
 Open **Hyprwidgets Settings** from your launcher, run `hyprwidgets settings`, right-click a card and pick **Settings…**, or start `hyprwidgets` again while it's running.
 
-- **Look**: themes (Midnight, Smoke, Clear, Graphite, Daylight, Paper) previewed on your own wallpaper, or set dark/light, glass/frosted/solid, opacity and an accent color yourself. The desktop follows as you change it.
+- **Look**: the themes, previewed on your own wallpaper, plus card opacity and an accent color. The desktop follows as you change it.
 - **Widgets**: which cards are on the desktop, when they show, clock, weather place.
 - **Calendars**: add your iCal links.
 - **Setup**: checks autostart, blur, the launcher entries and Reminders, and fixes what's missing.
@@ -89,8 +89,8 @@ Every key is optional and explained in [`config.example.toml`](config.example.to
 ```toml
 widgets = ["clock", "weather", "calendar", "reminders", "media"]
 position = "top-left"     # the corner new widgets fill from; drag cards to move them
-style = "glass"           # frosted, solid
-opacity = 0.7             # higher reads better on bright wallpapers
+theme = "zunder"          # or graphite, catppuccin-mocha, tokyo-night, nord, ...
+opacity = 0.9             # lower lets more wallpaper through
 show = "empty"            # "always" keeps them up behind your windows
 
 [weather]
@@ -99,7 +99,7 @@ location = "Zurich"
 
 ### 2. Hyprland: autostart and blur
 
-`hyprwidgets setup` does this for you. By hand: start it with Hyprland, and let Hyprland blur behind the cards for the frosted-glass look.
+`hyprwidgets setup` does this for you. By hand: start it with Hyprland, and let Hyprland blur behind the cards so the wallpaper behind the cards is softened.
 
 **Lua config** (`hyprland.lua`):
 
@@ -219,17 +219,19 @@ open = "https://pulse.example.com"
 
 ## Styling
 
-Themes, opacity and the accent color are in the settings (`appearance`, `style`, `opacity`, `accent` in the config; `appearance = "auto"` follows the GNOME color scheme). To change anything else, put CSS in `~/.config/hyprwidgets/style.css`. It loads on top of the [built-in stylesheet](src/style.css), so you can use the same class names:
+hyprwidgets looks like [zunder](https://github.com/elyesghazel/zunder): flat panels with a hairline border, JetBrains Mono, and headings that run into a rule. It uses zunder's palettes (graphite, catppuccin-mocha and -latte, rose-pine and -dawn, gruvbox-dark, tokyo-night, nord, everforest-dark, dracula, kanagawa, one-dark). `theme = "zunder"`, the default, follows whatever zunder is set to, including its accent and your own themes in `~/.config/zunder/themes`, and switches along with it.
+
+For anything else, put CSS in `~/.config/hyprwidgets/style.css`. It loads on top of the [built-in stylesheet](src/style.css) and can use the palette names `@bg @fg @muted @faint @ghost @accent @green @sel @hover` and `@card` (the background at your opacity):
 
 ```css
-/* bigger, rounder cards */
-.card { border-radius: 28px; padding: 20px; }
+/* rounder cards, no border */
+.card { border-radius: 16px; border: none; }
 
-/* a different weather sky */
-.card.weather { background-image: linear-gradient(170deg, #ff9a62, #e4547a); }
+/* a different color for the clock's heading */
+.clock .head-title { color: @green; }
 ```
 
-Classes: `.card` plus `.clock`, `.weather`, `.calendar`, `.agenda`, `.reminders`, `.media`, `.pulse`, and `.mini` / `.small` / `.medium` / `.large`. A collapsed card is `.card.pill`. The window has `.dark` or `.light` and `.glass`, `.frosted` or `.solid`.
+Classes: `.card` plus `.clock`, `.weather`, `.calendar`, `.agenda`, `.reminders`, `.media`, `.pulse`, and `.mini` / `.small` / `.medium` / `.large`. A collapsed card is `.card.pill`. Headings are `.head` with `.head-title`, `.rule` and `.head-right`.
 
 ## Writing a widget
 
@@ -255,7 +257,8 @@ pub const REGISTRY: &[(&str, Constructor)] = &[
 ## Troubleshooting
 
 - **A card is stuck somewhere odd**: Settings → Setup → Card positions → Reset.
-- **Hard to read on a bright wallpaper**: raise the opacity in Settings → Look, or pick Smoke or Graphite.
+- **Hard to read on a bright wallpaper**: raise the opacity in Settings → Look.
+- **Clicks go through the cards**: update; versions from before 2026-11-03 could lose the cards' input area after a workspace switch.
 - **Nothing shows**: the widgets only appear on workspaces without windows. Switch to an empty one, or set `show = "always"`. Errors go to `~/.local/state/hyprwidgets/log` when it was started by setup or the settings; or run `hyprwidgets quit; hyprwidgets` in a terminal.
 - **Wrong monitor**: `monitors = ["DP-1"]` limits them to the listed outputs (`hyprctl monitors` shows the names).
 - **Calendar is empty or says it can't load**: open the `.ics` address in a browser. It should download a file starting with `BEGIN:VCALENDAR`.

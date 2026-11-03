@@ -198,6 +198,34 @@ pub fn card(class: &str, size: Size) -> gtk::Box {
     b
 }
 
+/// The line a heading runs into, like zunder's "Windows ─────".
+pub fn rule() -> gtk::Box {
+    let r = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    r.add_css_class("rule");
+    r.set_hexpand(true);
+    r.set_valign(gtk::Align::Center);
+    r
+}
+
+/// A heading row: the title in the accent color, a rule, and `right` in a faint color.
+pub fn head(title: &gtk::Label, right: Option<&gtk::Label>) -> gtk::Box {
+    let b = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    b.add_css_class("head");
+    title.add_css_class("head-title");
+    title.set_hexpand(false);
+    title.set_max_width_chars(-1);
+    b.append(title);
+    b.append(&rule());
+    if let Some(r) = right {
+        r.add_css_class("head-right");
+        r.set_hexpand(false);
+        r.set_max_width_chars(-1);
+        r.set_ellipsize(gtk4::pango::EllipsizeMode::None);
+        b.append(r);
+    }
+    b
+}
+
 pub fn label(text: &str, class: &str) -> gtk::Label {
     let l = gtk::Label::new(Some(text));
     for c in class.split_whitespace() {

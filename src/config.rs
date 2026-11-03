@@ -14,13 +14,11 @@ pub struct Config {
     /// top-left, top-right, bottom-left, bottom-right, left, right, center.
     pub position: String,
     pub margin: i32,
-    /// dark, light, or auto (follows the GNOME color-scheme setting).
-    pub appearance: String,
-    /// glass (a pane of glass with a sheen), frosted (flat), or solid.
-    pub style: String,
-    /// How opaque the glass and frosted cards are, 0 (clear) to 1 (solid).
+    /// A color theme: "zunder" follows zunder's theme, or one of theme::BUILTIN by name.
+    pub theme: String,
+    /// How opaque the cards are, 0 (clear) to 1 (solid).
     pub opacity: f64,
-    /// A color like "#0a84ff" for highlights and ticked reminders. Empty keeps the defaults.
+    /// A color like "#b4befe" for headings and highlights. Empty: the theme's own.
     pub accent: String,
     /// "empty" shows the widgets only on workspaces without windows, "always" keeps them up.
     pub show: String,
@@ -42,9 +40,8 @@ impl Default for Config {
             widgets: ["clock", "weather", "calendar", "reminders", "media"].map(String::from).to_vec(),
             position: "top-left".into(),
             margin: 40,
-            appearance: "auto".into(),
-            style: "glass".into(),
-            opacity: 0.7,
+            theme: "zunder".into(),
+            opacity: 0.9,
             accent: String::new(),
             show: "empty".into(),
             monitors: Vec::new(),
@@ -196,8 +193,7 @@ impl Config {
     /// Equal apart from the look, which can change while running.
     pub fn same_but_look(&self, other: &Config) -> bool {
         let mut o = other.clone();
-        o.appearance.clone_from(&self.appearance);
-        o.style.clone_from(&self.style);
+        o.theme.clone_from(&self.theme);
         o.opacity = self.opacity;
         o.accent.clone_from(&self.accent);
         *self == o

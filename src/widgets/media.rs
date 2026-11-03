@@ -74,7 +74,7 @@ fn build(hub: &Ctx, data: &Shared<Track>, size: Size) -> gtk::Widget {
     let info = gtk::Box::new(gtk::Orientation::Vertical, 0);
     info.set_hexpand(true);
     info.set_valign(gtk::Align::Center);
-    let player = label("", "eyebrow dim");
+    let player = label("", "eyebrow");
     let title = label("Not playing", "media-title");
     let artist = label("", "dim");
     info.append(&player);
@@ -141,7 +141,7 @@ fn build(hub: &Ctx, data: &Shared<Track>, size: Size) -> gtk::Widget {
         data.bind(&c, move |c, t| {
             *current.borrow_mut() = t.clone();
             c.set_visible(t.active() || !hide_idle);
-            player.set_text(&pretty_player(&t.player).to_uppercase());
+            player.set_text(&pretty_player(&t.player));
             title.set_text(if t.active() { &t.title } else { "Not playing" });
             artist.set_text(&t.artist);
             play.set_icon_name(if t.playing { "media-playback-pause-symbolic" } else { "media-playback-start-symbolic" });

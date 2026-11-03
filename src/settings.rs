@@ -1,7 +1,7 @@
 //! `hyprwidgets settings`: the config in a window. Every change goes straight into config.toml
 //! (comments kept) and the running widgets pick it up from there.
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
@@ -13,7 +13,7 @@ use toml_edit::{Array, ArrayOfTables, DocumentMut, Item, Table, Value};
 
 use crate::config::{self, Config};
 use crate::setup;
-use crate::theme::{self, ACCENTS, PRESETS};
+use crate::theme::{self, BUILTIN};
 
 const CSS: &str = include_str!("settings.css");
 const README: &str = "https://github.com/elyesghazel/hyprwidgets#setup-in-detail";
@@ -93,15 +93,34 @@ pub fn run(page: Option<String>) -> glib::ExitCode {
     app.run_with_args::<&str>(&[])
 }
 
+thread_local! {
+    /// The palette the settings window is drawn in; follows the theme picked.
+    static PALETTE: gtk::CssProvider = gtk::CssProvider::new();
+}
+
+/// Redraws the settings window in a config's colors.
+fn repaint(cfg: &Config) {
+    PALETTE.with(|p| p.load_from_string(&theme::define_colors(&theme::resolved(cfg), cfg.opacity)));
+}
+
+const PAGES: &[(&str, &str, &str)] = &[
+    ("look", "Look", "\u{f53f}"),
+    ("widgets", "Widgets", "\u{f009}"),
+    ("calendars", "Calendars", "\u{f073}"),
+    ("setup", "Setup", "\u{f013}"),
+];
+
 fn build(app: &gtk::Application, page: Option<&str>) {
     let display = gdk::Display::default().expect("no display");
+    // above ~/.config/gtk-4.0/gtk.css, which some themes use to restyle everything
+    PALETTE.with(|p| gtk::style_context_add_provider_for_display(&display, p, gtk::STYLE_PROVIDER_PRIORITY_USER + 2));
     let css = gtk::CssProvider::new();
     css.load_from_string(CSS);
-    // above ~/.config/gtk-4.0/gtk.css, which some themes use to restyle everything
     gtk::style_context_add_provider_for_display(&display, &css, gtk::STYLE_PROVIDER_PRIORITY_USER + 1);
 
     let store = Store::load();
     let cfg = config::load();
+    repaint(&cfg);
 
     let win = gtk::ApplicationWindow::builder().application(app).title("hyprwidgets settings").default_width(920).default_height(660).build();
     win.add_css_class("hw-settings");
@@ -110,47 +129,62 @@ fn build(app: &gtk::Application, page: Option<&str>) {
     stack.set_transition_type(gtk::StackTransitionType::Crossfade);
     stack.set_hexpand(true);
     stack.set_vexpand(true);
-    let pages: [(&str, &str, gtk::Widget); 4] = [
-        ("look", "Look", look_page(&store, &cfg)),
-        ("widgets", "Widgets", widgets_page(&store, &cfg)),
-        ("calendars", "Calendars", calendars_page(&store, &cfg)),
-        ("setup", "Setup", setup_page(&store, &cfg)),
-    ];
-    for (name, title, page) in pages {
+    let built: [gtk::Widget; 4] = [look_page(&store, &cfg), widgets_page(&store, &cfg), calendars_page(&store, &cfg), setup_page(&store, &cfg)];
+    for ((name, title, _), page) in PAGES.iter().zip(built) {
         let scroll = gtk::ScrolledWindow::builder().hscrollbar_policy(gtk::PolicyType::Never).child(&page).build();
         stack.add_titled(&scroll, Some(name), title);
     }
-    // first run, or not set up yet: open on Setup
-    if let Some(p) = page.filter(|p| stack.child_by_name(p).is_some()) {
-        stack.set_visible_child_name(p);
-    } else if !config::path().exists() || !setup::running() {
-        stack.set_visible_child_name("setup");
-    }
+    let first = match page.filter(|p| PAGES.iter().any(|(n, _, _)| n == p)) {
+        Some(p) => p,
+        // first run, or not set up yet: open on Setup
+        None if !config::path().exists() || !setup::running() => "setup",
+        None => "look",
+    };
 
+    // the sidebar, drawn like zunder's: a marker, a glyph, the name
     let side = gtk::Box::new(gtk::Orientation::Vertical, 0);
     side.add_css_class("side");
-    let brand = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+    let brand = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     brand.add_css_class("brand");
-    // from the binary: the icon theme may not know it yet
-    let logo = gdk::Texture::from_bytes(&glib::Bytes::from_static(setup::ICON.as_bytes()))
-        .map(|t| gtk::Image::from_paintable(Some(&t)))
-        .unwrap_or_else(|_| gtk::Image::from_icon_name("hyprwidgets"));
-    logo.set_pixel_size(28);
-    brand.append(&logo);
+    let caret = gtk::Label::new(Some("\u{276f}"));
+    caret.add_css_class("caret");
+    brand.append(&caret);
     let name = gtk::Label::new(Some("hyprwidgets"));
     name.add_css_class("brand-name");
     brand.append(&name);
     side.append(&brand);
-    let sidebar = gtk::StackSidebar::new();
-    sidebar.set_stack(&stack);
-    sidebar.set_vexpand(true);
-    side.append(&sidebar);
-    let version = gtk::Label::new(Some(concat!("v", env!("CARGO_PKG_VERSION"))));
-    version.add_css_class("dim");
-    version.set_margin_bottom(12);
-    side.append(&version);
+    let list = gtk::ListBox::new();
+    list.add_css_class("side-list");
+    for (_, title, glyph) in PAGES {
+        let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        row.add_css_class("side-item");
+        for (text, class) in [("\u{2502}", "marker"), (*glyph, "glyph"), (*title, "side-title")] {
+            let l = gtk::Label::new(Some(text));
+            l.add_css_class(class);
+            row.append(&l);
+        }
+        list.append(&row);
+    }
+    let index = PAGES.iter().position(|(n, _, _)| *n == first).unwrap_or(0);
+    list.select_row(list.row_at_index(index as i32).as_ref());
+    stack.set_visible_child_name(first);
+    {
+        let stack = stack.clone();
+        list.connect_row_selected(move |_, row| {
+            if let Some(r) = row {
+                stack.set_visible_child_name(PAGES[r.index() as usize].0);
+            }
+        });
+    }
+    list.set_vexpand(true);
+    side.append(&list);
+    let path = gtk::Label::new(Some(&format!("v{}  ·  ~/.config/hyprwidgets", env!("CARGO_PKG_VERSION"))));
+    path.add_css_class("side-path");
+    path.set_xalign(0.0);
+    side.append(&path);
 
     let body = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    body.add_css_class("settings-body");
     if let Some(e) = &store.broken {
         let bar = gtk::Label::new(Some(&format!("config.toml has an error, so nothing here is saved until it's fixed:\n{e}")));
         bar.add_css_class("error-bar");
@@ -162,7 +196,6 @@ fn build(app: &gtk::Application, page: Option<&str>) {
 
     let root = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     root.append(&side);
-    root.append(&gtk::Separator::new(gtk::Orientation::Vertical));
     root.append(&body);
     win.set_child(Some(&root));
     win.present();
@@ -176,11 +209,18 @@ fn page_box() -> gtk::Box {
     b
 }
 
-fn heading(text: &str) -> gtk::Label {
+/// "Title ──────", like a zunder section.
+fn heading(text: &str) -> gtk::Box {
+    let b = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    b.add_css_class("page-head");
     let l = gtk::Label::new(Some(text));
-    l.add_css_class("heading");
-    l.set_xalign(0.0);
-    l
+    l.add_css_class("page-title");
+    b.append(&l);
+    let sep = gtk::Separator::new(gtk::Orientation::Horizontal);
+    sep.set_hexpand(true);
+    sep.set_valign(gtk::Align::Center);
+    b.append(&sep);
+    b
 }
 
 fn note(text: &str) -> gtk::Label {
@@ -200,19 +240,18 @@ fn group() -> gtk::Box {
 /// A row with a title, an optional line under it, and a control on the right.
 fn row(title: &str, subtitle: &str, control: &impl IsA<gtk::Widget>) -> (gtk::Box, gtk::Label) {
     let r = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-    r.add_css_class("row");
+    r.add_css_class("setting");
     let text = gtk::Box::new(gtk::Orientation::Vertical, 2);
     text.set_hexpand(true);
     text.set_valign(gtk::Align::Center);
     let t = gtk::Label::new(Some(title));
     t.set_xalign(0.0);
-    t.add_css_class("row-title");
+    t.add_css_class("setting-title");
     text.append(&t);
     let s = gtk::Label::new(Some(subtitle));
     s.set_xalign(0.0);
     s.set_wrap(true);
-    s.add_css_class("dim");
-    s.add_css_class("row-sub");
+    s.add_css_class("setting-help");
     s.set_visible(!subtitle.is_empty());
     text.append(&s);
     r.append(&text);
@@ -256,38 +295,55 @@ fn wallpaper() -> Option<String> {
     text.lines().filter(|l| !l.trim_start().starts_with('#')).flat_map(|l| l.split(['=', ','])).find_map(image)
 }
 
-fn preview_css(scope: &str, dark: bool, style: &str, opacity: f64, accent: &str) -> String {
-    let fg = if dark { "rgba(255, 255, 255, 0.96)" } else { "#1d1d1f" };
-    let dim = if dark { "rgba(235, 235, 245, 0.6)" } else { "rgba(60, 60, 67, 0.62)" };
-    let accent = if theme::valid_color(accent) { accent } else if dark { "#ff9f0a" } else { "#f08a00" };
-    // not .card: GTK themes style that class themselves
-    let mut s = theme::card_css(&format!("{scope} .pv-card"), dark, style, opacity);
-    s += &format!("{scope} .pv-card {{ color: {fg}; }} {scope} .pv-card .pv-dim {{ color: {dim}; }} {scope} .pv-card .pv-accent {{ color: {accent}; }} {scope} .pv-tick {{ background-color: {accent}; }}\n");
-    if dark && style != "solid" && opacity < 0.75 {
-        s += &format!("{scope} .pv-card label {{ text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }}\n");
-    }
-    s
+/// Colors for one theme tile, scoped to it.
+fn tile_css(scope: &str, p: &theme::Palette, opacity: f64) -> String {
+    let [bg, fg, _muted, faint, ghost, accent, green, ..] = p;
+    format!(
+        "{scope} .pv-card {{ background-color: alpha({bg}, {opacity:.2}); border-color: {ghost}; color: {fg}; }}\n\
+         {scope} .pv-accent {{ color: {accent}; }}\n\
+         {scope} .pv-dim {{ color: {faint}; }}\n\
+         {scope} .pv-rule {{ background-color: {ghost}; }}\n\
+         {scope} .pv-tick {{ background-color: {green}; border-color: {green}; }}\n\
+         {scope} .pv-swatch-a {{ background-color: {accent}; }}\n\
+         {scope} .pv-swatch-g {{ background-color: {green}; }}\n\
+         {scope} .pv-swatch-f {{ background-color: {fg}; }}\n"
+    )
 }
 
+fn pv_label(text: &str, classes: &[&str]) -> gtk::Label {
+    let l = gtk::Label::new(Some(text));
+    for c in classes {
+        l.add_css_class(c);
+    }
+    l.set_xalign(0.0);
+    l
+}
+
+fn pv_head(title: &str, right: &str) -> gtk::Box {
+    let b = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    b.append(&pv_label(title, &["pv-accent", "pv-bold"]));
+    let r = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    r.add_css_class("pv-rule");
+    r.set_hexpand(true);
+    r.set_valign(gtk::Align::Center);
+    b.append(&r);
+    if !right.is_empty() {
+        b.append(&pv_label(right, &["pv-dim"]));
+    }
+    b
+}
+
+/// A clock card as on the desktop.
 fn clock_card(big: bool) -> gtk::Box {
-    let card = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let card = gtk::Box::new(gtk::Orientation::Vertical, 2);
     card.add_css_class("pv-card");
-    card.add_css_class(if big { "pv-big" } else { "pv-small-card" });
+    if big {
+        card.add_css_class("pv-big");
+    }
     let now = chrono::Local::now();
-    let date = gtk::Label::new(Some(&now.format("%A").to_string().to_uppercase()));
-    date.add_css_class("pv-eyebrow");
-    date.add_css_class("pv-accent");
-    date.set_xalign(0.0);
-    card.append(&date);
-    let time = gtk::Label::new(Some(&now.format("%H:%M").to_string()));
-    time.add_css_class(if big { "pv-time-big" } else { "pv-time" });
-    time.set_xalign(0.0);
-    card.append(&time);
-    let sub = gtk::Label::new(Some(&now.format("%-d %B").to_string()));
-    sub.add_css_class("pv-dim");
-    sub.add_css_class("pv-small");
-    sub.set_xalign(0.0);
-    card.append(&sub);
+    card.append(&pv_head(&now.format("%A").to_string(), &now.format("w%V").to_string()));
+    card.append(&pv_label(&now.format("%H:%M").to_string(), &[if big { "pv-time-big" } else { "pv-time" }]));
+    card.append(&pv_label(&now.format("%-d %B").to_string(), &["pv-dim"]));
     card
 }
 
@@ -295,11 +351,7 @@ fn list_card() -> gtk::Box {
     let card = gtk::Box::new(gtk::Orientation::Vertical, 6);
     card.add_css_class("pv-card");
     card.add_css_class("pv-big");
-    let t = gtk::Label::new(Some("Reminders"));
-    t.add_css_class("pv-title");
-    t.add_css_class("pv-accent");
-    t.set_xalign(0.0);
-    card.append(&t);
+    card.append(&pv_head("Reminders", "3"));
     for (i, text) in ["Call the landlord", "Pick up the parcel", "Gym, push day"].iter().enumerate() {
         let r = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         let tick = gtk::Box::new(gtk::Orientation::Horizontal, 0);
@@ -309,12 +361,7 @@ fn list_card() -> gtk::Box {
         }
         tick.set_valign(gtk::Align::Center);
         r.append(&tick);
-        let l = gtk::Label::new(Some(text));
-        l.add_css_class("pv-small");
-        if i == 1 {
-            l.add_css_class("pv-dim");
-        }
-        r.append(&l);
+        r.append(&pv_label(text, if i == 1 { &["pv-dim"] } else { &[] }));
         card.append(&r);
     }
     card
@@ -327,103 +374,99 @@ fn wall(class: &str) -> gtk::Box {
     w
 }
 
+/// Accents offered next to the theme's own.
+const ACCENTS: &[&str] = &["", "#b4befe", "#cba6f7", "#89b4fa", "#94e2d5", "#a6e3a1", "#f9e2af", "#fab387", "#f38ba8"];
+
 fn look_page(store: &Rc<Store>, cfg: &Config) -> gtk::Widget {
     let page = page_box();
     let display = gdk::Display::default().expect("no display");
 
-    // previews of every preset, and one of the current look
-    let fixed = gtk::CssProvider::new();
+    // every theme tile in its own colors
+    let tiles_css = gtk::CssProvider::new();
     let mut css = match wallpaper() {
         Some(p) => format!(".wall {{ background-image: url(\"file://{}\"); background-size: cover; background-position: center; }}\n", p.replace('"', "%22")),
         None => String::new(),
     };
-    for (i, p) in PRESETS.iter().enumerate() {
-        css += &preview_css(&format!(".pv-{i}"), p.appearance == "dark", p.style, p.opacity, "");
+    let zunder = theme::zunder_theme_name();
+    let mut names: Vec<(String, String)> = Vec::new();
+    if let Some(z) = &zunder {
+        names.push(("zunder".into(), format!("zunder · {z}")));
+    }
+    names.extend(BUILTIN.iter().map(|t| (t.name.to_owned(), t.name.to_owned())));
+    for (i, (name, _)) in names.iter().enumerate() {
+        css += &tile_css(&format!(".tile-{i}"), &theme::palette(name).0, 0.92);
     }
     for (i, a) in ACCENTS.iter().enumerate().skip(1) {
         css += &format!(".swatch-{i} {{ background-color: {a}; }}\n");
     }
-    fixed.load_from_string(&css);
-    gtk::style_context_add_provider_for_display(&display, &fixed, gtk::STYLE_PROVIDER_PRIORITY_USER + 2);
-    let live = gtk::CssProvider::new();
-    gtk::style_context_add_provider_for_display(&display, &live, gtk::STYLE_PROVIDER_PRIORITY_USER + 2);
+    tiles_css.load_from_string(&css);
+    gtk::style_context_add_provider_for_display(&display, &tiles_css, gtk::STYLE_PROVIDER_PRIORITY_USER + 3);
 
-    // what's picked now
-    #[derive(Clone)]
-    struct Look {
-        appearance: String,
-        style: String,
-        opacity: f64,
-        accent: String,
-    }
-    let look = Rc::new(RefCell::new(Look {
-        appearance: cfg.appearance.clone(),
-        style: theme::style_class(&cfg.style).to_owned(),
-        opacity: cfg.opacity,
-        accent: cfg.accent.clone(),
-    }));
-
-    page.append(&heading("Preview"));
+    page.append(&heading("Look"));
+    page.append(&note("How it sits on your wallpaper. On the desktop Hyprland also blurs what's behind the cards."));
     let big = wall("pv-live");
     big.add_css_class("wall-big");
     big.append(&clock_card(true));
     big.append(&list_card());
     page.append(&big);
-    page.append(&note("On your desktop Hyprland also blurs what's behind the cards, so they read a bit softer than here."));
 
-    page.append(&heading("Themes"));
-    let presets = gtk::FlowBox::new();
-    presets.set_selection_mode(gtk::SelectionMode::None);
-    presets.set_max_children_per_line(3);
-    presets.set_min_children_per_line(3);
-    presets.set_column_spacing(12);
-    presets.set_row_spacing(12);
-    presets.set_homogeneous(true);
-    let mut preset_buttons = Vec::new();
-    for (i, p) in PRESETS.iter().enumerate() {
+    page.append(&heading("Theme"));
+    page.append(&note(if zunder.is_some() {
+        "The same palettes as zunder. \"zunder\" follows whatever zunder is set to."
+    } else {
+        "The same palettes as zunder."
+    }));
+    let grid = gtk::FlowBox::new();
+    grid.set_selection_mode(gtk::SelectionMode::None);
+    grid.set_max_children_per_line(4);
+    grid.set_min_children_per_line(3);
+    grid.set_column_spacing(10);
+    grid.set_row_spacing(10);
+    grid.set_homogeneous(true);
+    let current = Rc::new(RefCell::new(cfg.clone()));
+    let mut tiles = Vec::new();
+    for (i, (name, label)) in names.iter().enumerate() {
         let b = gtk::Button::new();
-        b.add_css_class("preset");
-        b.add_css_class("flat");
+        b.add_css_class("tile");
+        b.add_css_class(&format!("tile-{i}"));
         let v = gtk::Box::new(gtk::Orientation::Vertical, 6);
-        let w = wall(&format!("pv-{i}"));
-        let c = clock_card(false);
-        c.set_halign(gtk::Align::Center);
-        c.set_hexpand(true);
-        w.append(&c);
-        v.append(&w);
-        let l = gtk::Label::new(Some(p.name));
-        l.add_css_class("preset-name");
+        let card = gtk::Box::new(gtk::Orientation::Vertical, 4);
+        card.add_css_class("pv-card");
+        card.append(&pv_head("Clock", ""));
+        card.append(&pv_label(&chrono::Local::now().format("%H:%M").to_string(), &["pv-time"]));
+        let dots = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+        for c in ["pv-swatch-a", "pv-swatch-g", "pv-swatch-f"] {
+            let d = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+            d.add_css_class("pv-swatch");
+            d.add_css_class(c);
+            dots.append(&d);
+        }
+        card.append(&dots);
+        v.append(&card);
+        let l = gtk::Label::new(Some(label));
+        l.add_css_class("tile-name");
+        l.set_ellipsize(gtk4::pango::EllipsizeMode::End);
         v.append(&l);
         b.set_child(Some(&v));
-        presets.insert(&b, -1);
-        preset_buttons.push(b);
+        grid.insert(&b, -1);
+        tiles.push((b, name.clone()));
     }
-    page.append(&presets);
+    page.append(&grid);
 
-    page.append(&heading("Custom"));
-    let g = group();
-    let appearances = ["auto", "dark", "light"];
-    let appearance = gtk::DropDown::from_strings(&["Follow the system", "Dark", "Light"]);
-    appearance.set_selected(appearances.iter().position(|a| *a == cfg.appearance).unwrap_or(0) as u32);
-    g.append(&row("Appearance", "Follow the system uses the GNOME color scheme", &appearance).0);
-    let style = gtk::DropDown::from_strings(&["Glass", "Frosted", "Solid"]);
-    style.set_selected(theme::STYLES.iter().position(|s| *s == theme::style_class(&cfg.style)).unwrap_or(0) as u32);
-    g.append(&row("Style", "Glass has a light edge and a sheen, frosted is flat", &style).0);
-    let opacity = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 1.0, 0.05);
+    page.append(&heading("Cards"));
+    let opacity = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.3, 1.0, 0.05);
     opacity.set_value(cfg.opacity);
     opacity.set_width_request(240);
     opacity.set_draw_value(true);
     opacity.set_digits(2);
-    opacity.add_mark(0.7, gtk::PositionType::Bottom, None);
-    let (opacity_row, _) = row("Opacity", "Higher reads better on bright wallpapers", &opacity);
-    g.append(&opacity_row);
-    let swatches = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    page.append(&row("Opacity", "Higher reads better on bright wallpapers", &opacity).0);
+    let swatches = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     let mut swatch_buttons = Vec::new();
     for (i, a) in ACCENTS.iter().enumerate() {
         let b = gtk::Button::new();
         b.add_css_class("swatch");
         b.add_css_class(&format!("swatch-{i}"));
-        b.set_tooltip_text(Some(if a.is_empty() { "Default" } else { a }));
+        b.set_tooltip_text(Some(if a.is_empty() { "The theme's own" } else { a }));
         if a.is_empty() {
             b.set_label("A");
             b.add_css_class("swatch-auto");
@@ -431,88 +474,45 @@ fn look_page(store: &Rc<Store>, cfg: &Config) -> gtk::Widget {
         swatches.append(&b);
         swatch_buttons.push(b);
     }
-    g.append(&row("Accent", "Highlights and ticked reminders", &swatches).0);
-    page.append(&g);
+    page.append(&row("Accent", "Headings, today, the progress bars", &swatches).0);
 
-    // one place that shows the look and saves it
     let refresh = {
-        let (look, live, presets, swatches, opacity_row) = (look.clone(), live.clone(), preset_buttons.clone(), swatch_buttons.clone(), opacity_row.clone());
+        let (current, tiles, swatches) = (current.clone(), tiles.clone(), swatch_buttons.clone());
         Rc::new(move || {
-            let l = look.borrow();
-            let dark = theme::is_dark(&l.appearance);
-            live.load_from_string(&preview_css(".pv-live", dark, &l.style, l.opacity, &l.accent));
-            for (b, p) in presets.iter().zip(PRESETS) {
-                let appearance = if l.appearance == "auto" { if dark { "dark" } else { "light" } } else { l.appearance.as_str() };
-                let on = p.appearance == appearance && p.style == l.style && (p.style == "solid" || (p.opacity - l.opacity).abs() < 0.01);
-                if on { b.add_css_class("selected") } else { b.remove_css_class("selected") }
+            let c = current.borrow();
+            repaint(&c);
+            for (b, name) in &tiles {
+                if *name == c.theme { b.add_css_class("selected") } else { b.remove_css_class("selected") }
             }
             for (b, a) in swatches.iter().zip(ACCENTS) {
-                if *a == l.accent { b.add_css_class("selected") } else { b.remove_css_class("selected") }
+                if *a == c.accent { b.add_css_class("selected") } else { b.remove_css_class("selected") }
             }
-            opacity_row.set_sensitive(l.style != "solid");
         })
     };
     refresh();
-    let save = {
-        let (store, look) = (store.clone(), look.clone());
-        Rc::new(move || {
-            let l = look.borrow().clone();
-            store.set(None, "appearance", l.appearance);
-            store.set(None, "style", l.style);
-            store.set(None, "opacity", (l.opacity * 100.0).round() / 100.0);
-            store.set(None, "accent", l.accent);
-        })
-    };
-    // a preset sets three controls at once; save once, after the last
-    let quiet = Rc::new(Cell::new(false));
-    {
-        let (look, refresh, save, quiet) = (look.clone(), refresh.clone(), save.clone(), quiet.clone());
-        appearance.connect_selected_notify(move |d| {
-            look.borrow_mut().appearance = appearances[d.selected() as usize].to_owned();
+    for (b, name) in &tiles {
+        let (current, refresh, store, name) = (current.clone(), refresh.clone(), store.clone(), name.clone());
+        b.connect_clicked(move |_| {
+            current.borrow_mut().theme = name.clone();
             refresh();
-            if !quiet.get() { save() }
-        });
-    }
-    {
-        let (look, refresh, save, quiet) = (look.clone(), refresh.clone(), save.clone(), quiet.clone());
-        style.connect_selected_notify(move |d| {
-            look.borrow_mut().style = theme::STYLES[d.selected() as usize].to_owned();
-            refresh();
-            if !quiet.get() { save() }
-        });
-    }
-    {
-        let (look, refresh, quiet, store) = (look.clone(), refresh.clone(), quiet.clone(), store.clone());
-        let save = save.clone();
-        opacity.connect_value_changed(move |s| {
-            look.borrow_mut().opacity = s.value();
-            refresh();
-            if !quiet.get() {
-                let save = save.clone();
-                // the widgets follow while dragging, a few times a second
-                store.later("opacity", move |_| save());
-            }
+            store.set(None, "theme", name.as_str());
         });
     }
     for (b, a) in swatch_buttons.iter().zip(ACCENTS) {
-        let (look, refresh, save) = (look.clone(), refresh.clone(), save.clone());
+        let (current, refresh, store) = (current.clone(), refresh.clone(), store.clone());
         b.connect_clicked(move |_| {
-            look.borrow_mut().accent = (*a).to_owned();
+            current.borrow_mut().accent = (*a).to_owned();
             refresh();
-            save();
+            store.set(None, "accent", *a);
         });
     }
-    for (b, p) in preset_buttons.iter().zip(PRESETS) {
-        let (appearance, style, opacity, quiet, save) = (appearance.clone(), style.clone(), opacity.clone(), quiet.clone(), save.clone());
-        b.connect_clicked(move |_| {
-            quiet.set(true);
-            appearance.set_selected(appearances.iter().position(|a| *a == p.appearance).unwrap_or(0) as u32);
-            style.set_selected(theme::STYLES.iter().position(|s| *s == p.style).unwrap_or(0) as u32);
-            if p.style != "solid" {
-                opacity.set_value(p.opacity);
-            }
-            quiet.set(false);
-            save();
+    {
+        let (current, refresh, store) = (current.clone(), refresh.clone(), store.clone());
+        opacity.connect_value_changed(move |s| {
+            let v = (s.value() * 100.0).round() / 100.0;
+            current.borrow_mut().opacity = v;
+            refresh();
+            store.later("opacity", move |st| st.set(None, "opacity", v));
         });
     }
     page.upcast()
@@ -733,14 +733,14 @@ fn calendars_page(store: &Rc<Store>, cfg: &Config) -> gtk::Widget {
 
 // ── Setup ────────────────────────────────────────────────
 
-fn status_icon() -> gtk::Image {
-    let i = gtk::Image::new();
-    i.set_pixel_size(18);
-    i
+fn status_icon() -> gtk::Label {
+    let l = gtk::Label::new(None);
+    l.set_width_chars(2);
+    l
 }
 
-fn set_status(icon: &gtk::Image, ok: bool) {
-    icon.set_icon_name(Some(if ok { "object-select-symbolic" } else { "dialog-warning-symbolic" }));
+fn set_status(icon: &gtk::Label, ok: bool) {
+    icon.set_text(if ok { "\u{2713}" } else { "!" });
     icon.set_css_classes(&[if ok { "ok" } else { "warn" }]);
 }
 
@@ -752,7 +752,7 @@ fn setup_page(store: &Rc<Store>, cfg: &Config) -> gtk::Widget {
     let hypr = setup::Hypr::detect();
 
     struct Line {
-        icon: gtk::Image,
+        icon: gtk::Label,
         sub: gtk::Label,
         button: gtk::Button,
     }
@@ -792,7 +792,7 @@ fn setup_page(store: &Rc<Store>, cfg: &Config) -> gtk::Widget {
                 (_, true) => "hyprwidgets starts when you log in",
                 (_, false) => "Adds it to Hyprland's start, in a file of its own",
             });
-            blur.sub.set_text(if b { "The frosted look is on" } else { "Without it the cards look flat on busy wallpapers" });
+            blur.sub.set_text(if b { "The wallpaper behind the cards is blurred" } else { "Without it busy wallpapers show through the cards" });
             autostart.button.set_visible(!a && hypr.is_some());
             blur.button.set_visible(!b && hypr.is_some());
             autostart.button.set_tooltip_text(Some(&file));

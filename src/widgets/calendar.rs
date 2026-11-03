@@ -76,19 +76,22 @@ fn month(ctx: &Ctx, data: &Shared<Agenda>) -> gtk::Widget {
     // header: "November 2026" on the left, ‹ • › on the right
     let header = gtk::Box::new(gtk::Orientation::Horizontal, 2);
     header.add_css_class("cal-header");
+    header.add_css_class("head");
     let title = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    title.set_hexpand(true);
-    let month_name = label("", "card-title red");
+    let month_name = label("", "head-title");
     month_name.set_hexpand(false);
     month_name.set_max_width_chars(-1);
     month_name.set_ellipsize(gtk4::pango::EllipsizeMode::None);
-    let year = label("", "card-title dim");
+    let year = label("", "dim");
     year.set_max_width_chars(-1);
     year.set_ellipsize(gtk4::pango::EllipsizeMode::None);
     title.append(&month_name);
     title.append(&year);
     title.set_tooltip_text(Some("Open calendar"));
     header.append(&title);
+    let r = super::rule();
+    r.set_margin_end(6);
+    header.append(&r);
     let nav = |icon: &str, tip: &str| {
         let b = gtk::Button::from_icon_name(icon);
         b.add_css_class("cal-nav");
@@ -138,10 +141,10 @@ fn month(ctx: &Ctx, data: &Shared<Agenda>) -> gtk::Widget {
             let days = (first.checked_add_months(Months::new(1)).unwrap() - first).num_days();
             let room = if (lead + days + 6) / 7 >= 6 { 1 } else { 2 };
             day_title.set_text(&match (sel - today).num_days() {
-                0 => "TODAY".into(),
-                1 => "TOMORROW".into(),
-                -1 => "YESTERDAY".into(),
-                _ => sel.format("%A %-d %B").to_string().to_uppercase(),
+                0 => "Today".into(),
+                1 => "Tomorrow".into(),
+                -1 => "Yesterday".into(),
+                _ => sel.format("%A %-d %B").to_string(),
             });
             if events.is_empty() {
                 let msg = match (&agenda.error, sel == today) {
@@ -152,7 +155,7 @@ fn month(ctx: &Ctx, data: &Shared<Agenda>) -> gtk::Widget {
                 // today is done: show what comes next instead of an empty card
                 match agenda.events.iter().find(|e| e.upcoming(&now) && e.start.date_naive() > today) {
                     Some(e) if sel == today => {
-                        day_title.set_text(&format!("NOTHING ELSE TODAY · NEXT {}", e.start.format("%a %-d").to_string().to_uppercase()));
+                        day_title.set_text(&format!("Nothing else today · next {}", e.start.format("%a %-d").to_string()));
                     }
                     _ => list.append(&label(&msg, "small dim cal-empty")),
                 }
@@ -383,7 +386,7 @@ fn agenda(hub: &Ctx, data: &Shared<Agenda>) -> gtk::Widget {
 
     let today = gtk::Box::new(gtk::Orientation::Vertical, 0);
     today.add_css_class("cal-today");
-    let weekday = label("", "eyebrow red");
+    let weekday = label("", "eyebrow");
     let day = label("", "cal-day");
     day.set_ellipsize(gtk4::pango::EllipsizeMode::None);
     day.set_max_width_chars(-1);
@@ -412,7 +415,7 @@ fn agenda(hub: &Ctx, data: &Shared<Agenda>) -> gtk::Widget {
     }
 
     hub.now.bind(&c, move |_, now| {
-        weekday.set_text(&now.format("%A").to_string().to_uppercase());
+        weekday.set_text(&now.format("%A").to_string());
         day.set_text(&now.day().to_string());
     });
 
@@ -442,9 +445,9 @@ fn agenda(hub: &Ctx, data: &Shared<Agenda>) -> gtk::Widget {
             let d = e.start.date_naive().max(now.date_naive());
             if last_day != Some(d) {
                 let heading = match (d - now.date_naive()).num_days() {
-                    0 => "TODAY".to_string(),
-                    1 => "TOMORROW".to_string(),
-                    _ => e.start.format("%A %-d").to_string().to_uppercase(),
+                    0 => "Today".to_string(),
+                    1 => "Tomorrow".to_string(),
+                    _ => e.start.format("%A %-d").to_string(),
                 };
                 let h = label(&heading, "cal-heading dim");
                 if last_day.is_some() {
@@ -494,7 +497,7 @@ pub fn event_row(e: &Event, twelve: bool, now: &chrono::DateTime<Local>) -> gtk:
 /// Small: the date, big, and what's next today.
 fn today(ctx: &Ctx, data: &Shared<Agenda>) -> gtk::Widget {
     let c = card("calendar-today", Size::Small);
-    let weekday = label("", "eyebrow red");
+    let weekday = label("", "eyebrow");
     let day = label("", "cal-day");
     day.set_ellipsize(gtk4::pango::EllipsizeMode::None);
     day.set_max_width_chars(-1);
@@ -508,7 +511,7 @@ fn today(ctx: &Ctx, data: &Shared<Agenda>) -> gtk::Widget {
     let cal = ctx.cfg.calendar.clone();
     on_click(&c, move || open(&cal, Local::now().date_naive()));
     ctx.now.bind(&c, move |_, now| {
-        weekday.set_text(&now.format("%A").to_string().to_uppercase());
+        weekday.set_text(&now.format("%A").to_string());
         day.set_text(&now.day().to_string());
     });
     let twelve = ctx.cfg.clock.twelve_hour;

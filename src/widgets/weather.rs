@@ -59,10 +59,12 @@ fn build(ctx: &Ctx, data: &Shared<weather::Weather>, size: Size) -> gtk::Widget 
     // the current conditions, laid out for the size
     let place = label("", "weather-place");
     let temp = big("", "weather-temp");
-    let now_icon = icon(22);
+    let now_icon = icon(18);
     now_icon.set_halign(gtk::Align::Start);
     let cond = label("", "weather-cond");
     let range = label("", "weather-range dim");
+    let soon = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    soon.set_homogeneous(true);
     let hours = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     hours.set_homogeneous(true);
     hours.add_css_class("weather-hours");
@@ -79,18 +81,24 @@ fn build(ctx: &Ctx, data: &Shared<weather::Weather>, size: Size) -> gtk::Widget 
             c.append(&now_icon);
             c.append(&temp);
         }
+        // place and today's range, now, and the next three hours on one line
         Size::Small => {
+            c.append(&super::head(&place, Some(&range)));
+            let now_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+            now_row.append(&now_icon);
+            cond.set_hexpand(true);
+            now_row.append(&cond);
             let spacer = gtk::Box::new(gtk::Orientation::Vertical, 0);
             spacer.set_vexpand(true);
-            for w in [place.upcast_ref::<gtk::Widget>(), temp.upcast_ref(), spacer.upcast_ref(), now_icon.upcast_ref(), cond.upcast_ref(), range.upcast_ref()] {
+            for w in [temp.upcast_ref::<gtk::Widget>(), now_row.upcast_ref(), spacer.upcast_ref(), soon.upcast_ref()] {
                 c.append(w);
             }
         }
         Size::Medium | Size::Large => {
+            c.append(&super::head(&place, None));
             let top = gtk::Box::new(gtk::Orientation::Horizontal, 8);
             let left = gtk::Box::new(gtk::Orientation::Vertical, 0);
             left.set_hexpand(true);
-            left.append(&place);
             left.append(&temp);
             let right = gtk::Box::new(gtk::Orientation::Vertical, 2);
             right.set_valign(gtk::Align::Start);
@@ -136,7 +144,14 @@ fn build(ctx: &Ctx, data: &Shared<weather::Weather>, size: Size) -> gtk::Widget 
         temp.set_text(&format!("{:.0}°", w.temp));
         now_icon.set_icon_name(Some(name));
         cond.set_text(text);
-        range.set_text(&format!("H:{:.0}°  L:{:.0}°", w.high, w.low));
+        range.set_text(&format!("\u{2191}{:.0}° \u{2193}{:.0}°", w.high, w.low));
+        clear(&soon);
+        for h in w.hours.iter().skip(1).take(3) {
+            let col = gtk::Box::new(gtk::Orientation::Vertical, 0);
+            col.append(&big(&h.hour, "tiny dim"));
+            col.append(&big(&format!("{:.0}°", h.temp), "small"));
+            soon.append(&col);
+        }
 
         clear(&hours);
         for (i, h) in w.hours.iter().take(6).enumerate() {

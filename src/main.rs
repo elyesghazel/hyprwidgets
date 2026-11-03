@@ -170,6 +170,8 @@ struct App {
     /// The config as last loaded; only its look may differ from `ctx.cfg`.
     look: RefCell<Config>,
     theme: gtk::CssProvider,
+    /// What `theme` holds.
+    css: RefCell<String>,
 }
 
 thread_local! {
@@ -220,6 +222,7 @@ fn activate(app: &gtk::Application) {
         widgets: Rc::new(widgets),
         boards: RefCell::default(),
         monitors: Shared::new(),
+        css: RefCell::new(theme::css(&ctx.cfg)),
         theme,
     });
     actions(app);
@@ -328,24 +331,28 @@ fn actions(app: &gtk::Application) {
 }
 
 /// Applies config.toml as soon as it's saved: the look in place, anything else by restarting.
+/// zunder's config is watched too, for `theme = "zunder"`.
 fn watch_config(me: &Rc<App>) {
     let _ = std::fs::create_dir_all(config::dir());
-    let file = gio::File::for_path(config::path());
-    let Ok(monitor) = file.monitor_file(gio::FileMonitorFlags::WATCH_MOVES, gio::Cancellable::NONE) else { return };
     let pending: Rc<Cell<Option<glib::SourceId>>> = Rc::default();
-    let me = me.clone();
-    monitor.connect_changed(move |_, _, _, _| {
-        // editors write in several steps; act once it settles
-        if let Some(id) = pending.take() {
-            id.remove();
-        }
-        let (me, pending2) = (me.clone(), pending.clone());
-        pending.set(Some(glib::timeout_add_local_once(Duration::from_millis(300), move || {
-            pending2.set(None);
-            reload(&me);
-        })));
-    });
-    std::mem::forget(monitor);
+    let zunder = dirs::config_dir().unwrap_or_default().join("zunder/config.toml");
+    for path in [config::path(), zunder] {
+        let file = gio::File::for_path(path);
+        let Ok(monitor) = file.monitor_file(gio::FileMonitorFlags::WATCH_MOVES, gio::Cancellable::NONE) else { continue };
+        let (me, pending) = (me.clone(), pending.clone());
+        monitor.connect_changed(move |_, _, _, _| {
+            // editors write in several steps; act once it settles
+            if let Some(id) = pending.take() {
+                id.remove();
+            }
+            let (me, pending2) = (me.clone(), pending.clone());
+            pending.set(Some(glib::timeout_add_local_once(Duration::from_millis(300), move || {
+                pending2.set(None);
+                reload(&me);
+            })));
+        });
+        std::mem::forget(monitor);
+    }
 }
 
 fn reload(me: &Rc<App>) {
@@ -354,19 +361,21 @@ fn reload(me: &Rc<App>) {
         // half-written by hand: keep what's running
         Err(e) => return eprintln!("hyprwidgets: {e}"),
     };
-    if new == *me.look.borrow() {
-        return;
-    }
     if !me.ctx.cfg.same_but_look(&new) {
         eprintln!("hyprwidgets: config changed, restarting");
         reexec();
         return;
     }
+    let css = theme::css(&new);
+    if *me.css.borrow() == css {
+        return;
+    }
     eprintln!("hyprwidgets: new look applied");
-    me.theme.load_from_string(&theme::css(&new));
+    me.theme.load_from_string(&css);
+    *me.css.borrow_mut() = css;
     let classes = theme::classes(&new);
     for b in me.boards.borrow().values() {
-        for c in ["dark", "light"].iter().chain(theme::STYLES) {
+        for c in ["dark", "light"] {
             b.win.remove_css_class(c);
         }
         for c in classes {

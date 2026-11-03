@@ -10,10 +10,9 @@ widgets = ["clock", "weather", "calendar", "reminders", "media"]
 # ~/.local/state/hyprwidgets/layout.json (delete it to start over).
 position = "top-left"   # top-left, top-right, bottom-left, bottom-right
 margin = 40             # pixels from the screen edge
-appearance = "auto"     # auto (follows the GNOME color-scheme), dark, light
-style = "glass"         # glass (a pane of glass with a sheen), frosted (flat), solid
-opacity = 0.7           # glass and frosted: 0 = clear, 1 = solid. Higher reads better on bright wallpapers
-accent = ""             # e.g. "#0a84ff"; empty = the defaults
+theme = "zunder"        # zunder = follow zunder's theme; or graphite, catppuccin-mocha, tokyo-night, nord, ...
+opacity = 0.9           # 0 = clear, 1 = solid
+accent = ""             # e.g. "#b4befe"; empty = the theme's
 show = "empty"          # empty = only on workspaces without windows, always = keep them up
 monitors = []           # e.g. ["DP-1"]; empty = every monitor
 workspaces = []         # e.g. [1, 2]; empty = every workspace

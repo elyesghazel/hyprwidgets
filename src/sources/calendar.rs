@@ -44,8 +44,8 @@ impl Event {
     }
 }
 
-/// Apple's calendar colours, handed out in order to sources without one.
-const PALETTE: &[&str] = &["#ff453a", "#0a84ff", "#30d158", "#ff9f0a", "#bf5af2", "#64d2ff", "#ff375f"];
+/// Catppuccin colours, handed out in order to sources without one.
+const PALETTE: &[&str] = &["#b4befe", "#f38ba8", "#a6e3a1", "#fab387", "#89dceb", "#cba6f7", "#f9e2af"];
 
 pub fn watch(cfg: Calendar, tx: async_channel::Sender<Agenda>) {
     if cfg.sources.is_empty() {

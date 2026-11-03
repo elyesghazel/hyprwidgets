@@ -47,11 +47,11 @@ impl Widget for Pulse {
     }
 }
 
-const GREEN: (f64, f64, f64) = (0.19, 0.82, 0.35);
-const YELLOW: (f64, f64, f64) = (1.0, 0.84, 0.04);
-const RED: (f64, f64, f64) = (1.0, 0.27, 0.23);
-const SLEEP: (f64, f64, f64) = (0.39, 0.82, 1.0);
-const STRAIN: (f64, f64, f64) = (0.04, 0.52, 1.0);
+const GREEN: (f64, f64, f64) = (0.65, 0.89, 0.63);
+const YELLOW: (f64, f64, f64) = (0.98, 0.89, 0.69);
+const RED: (f64, f64, f64) = (0.95, 0.55, 0.66);
+const SLEEP: (f64, f64, f64) = (0.71, 0.75, 1.0);
+const STRAIN: (f64, f64, f64) = (0.98, 0.70, 0.53);
 
 /// "7h34" from minutes.
 fn hm(min: f64) -> String {
@@ -148,13 +148,15 @@ fn driver(label: &str) -> &str {
 fn build(ctx: &Ctx, data: &Shared<Scores>, size: Size) -> gtk::Widget {
     let c = card("pulse", size);
     let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    let title = label("Pulse", "card-title");
-    title.set_hexpand(true);
+    header.add_css_class("head");
+    let title = label("Pulse", "head-title");
+    title.set_max_width_chars(-1);
     let when = label("", "small dim");
     when.set_xalign(1.0);
     when.set_ellipsize(gtk4::pango::EllipsizeMode::None);
     when.set_max_width_chars(-1);
     header.append(&title);
+    header.append(&super::rule());
     header.append(&when);
 
     let px = match size {
@@ -164,9 +166,9 @@ fn build(ctx: &Ctx, data: &Shared<Scores>, size: Size) -> gtk::Widget {
         Size::Large => 84,
     };
     let named = matches!(size, Size::Medium | Size::Large);
-    let recovery = ring(if named { "RECOVERY" } else { "" }, GREEN, px);
-    let sleep = ring(if named { "SLEEP" } else { "" }, SLEEP, px);
-    let strain = ring(if named { "STRAIN" } else { "" }, STRAIN, px);
+    let recovery = ring(if named { "recovery" } else { "" }, GREEN, px);
+    let sleep = ring(if named { "sleep" } else { "" }, SLEEP, px);
+    let strain = ring(if named { "strain" } else { "" }, STRAIN, px);
     let rings = gtk::Box::new(gtk::Orientation::Horizontal, 4);
     rings.add_css_class("pulse-rings");
     rings.set_homogeneous(true);

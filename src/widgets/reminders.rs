@@ -53,11 +53,13 @@ fn build(hub: &Ctx, data: &Shared<State>, cmd: async_channel::Sender<Cmd>, size:
     let c = card("reminders", size);
 
     let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    let title = label("Reminders", "card-title orange");
-    title.set_hexpand(true);
+    header.add_css_class("head");
+    let title = label("Reminders", "head-title");
+    title.set_max_width_chars(-1);
     let spinner = gtk::Spinner::new();
-    let count = label("", "rem-count orange");
+    let count = label("", "rem-count");
     header.append(&title);
+    header.append(&super::rule());
     header.append(&spinner);
     header.append(&count);
     c.append(&header);

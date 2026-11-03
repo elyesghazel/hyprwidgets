@@ -65,7 +65,7 @@ fn build(ctx: &Ctx, size: Size) -> gtk::Widget {
             c.append(&day);
             c.append(&time);
             ctx.now.bind(&c, move |_, now| {
-                day.set_text(&now.format("%a").to_string().to_uppercase());
+                day.set_text(&now.format("%a").to_string());
                 time.set_text(&super::time(now, cfg.twelve_hour).replace(" AM", "").replace(" PM", ""));
             });
         }
@@ -92,30 +92,43 @@ fn build(ctx: &Ctx, size: Size) -> gtk::Widget {
             c.append(&row);
             ctx.now.bind(&c, move |_, now| {
                 time.set_text(&clock_text(&cfg, now));
-                day.set_text(&now.format("%A").to_string().to_uppercase());
+                day.set_text(&now.format("%A").to_string());
                 date.set_text(&now.format("%-d %B").to_string());
                 let ampm = if cfg.twelve_hour { now.format(" · %p").to_string() } else { String::new() };
                 wk.set_text(&format!("Week {}{ampm}", week(now)));
             });
         }
+        // weekday and week, the time, the date, and how much of the day is gone
         Size::Small => {
-            let day = label("", "eyebrow accent");
+            let day = label("", "");
+            let wk = label("", "");
+            c.append(&super::head(&day, Some(&wk)));
             let time = big("clock-time");
             if cfg.seconds {
                 time.add_css_class("seconds");
             }
-            let date = label("", "clock-date dim");
+            let date = label("", "clock-date");
             let spacer = gtk::Box::new(gtk::Orientation::Vertical, 0);
             spacer.set_vexpand(true);
-            c.append(&day);
-            c.append(&spacer);
+            let bar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+            bar.add_css_class("clock-bar");
+            let fill = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+            fill.add_css_class("clock-bar-fill");
+            bar.append(&fill);
             c.append(&time);
             c.append(&date);
+            c.append(&spacer);
+            c.append(&bar);
             ctx.now.bind(&c, move |_, now| {
-                day.set_text(&now.format("%A").to_string().to_uppercase());
+                day.set_text(&now.format("%A").to_string());
+                wk.set_text(&format!("w{}", week(now)));
                 time.set_text(&clock_text(&cfg, now));
                 let suffix = if cfg.twelve_hour { now.format(" · %p").to_string() } else { String::new() };
-                date.set_text(&format!("{}{suffix} · W{}", now.format("%-d %B"), week(now)));
+                date.set_text(&format!("{}{suffix}", now.format("%-d %B")));
+                let secs = now.time().signed_duration_since(chrono::NaiveTime::MIN).num_seconds() as f64;
+                let width = bar.width().max(1) as f64;
+                fill.set_size_request((secs / 86400.0 * width) as i32, -1);
+                fill.set_tooltip_text(Some(&format!("{:.0}% of the day", secs / 864.0)));
             });
         }
     }

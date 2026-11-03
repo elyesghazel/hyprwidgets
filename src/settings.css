@@ -1,0 +1,70 @@
+/* hyprwidgets settings. Colors mostly come from your GTK theme. */
+
+.hw-settings .side { min-width: 190px; }
+.hw-settings .brand { margin: 18px 16px 10px 16px; }
+.hw-settings .brand-name { font-size: 16px; font-weight: 700; }
+.hw-settings stacksidebar, .hw-settings stacksidebar list { background: none; border: none; }
+.hw-settings stacksidebar row { margin: 1px 8px; border-radius: 8px; padding: 8px 10px; }
+
+.hw-settings .page { margin: 24px 32px 32px 32px; }
+.hw-settings .heading { font-size: 13px; font-weight: 700; margin-top: 14px; opacity: 0.85; }
+.hw-settings .dim { opacity: 0.6; }
+.hw-settings .row-sub { font-size: 12px; }
+.hw-settings .row-title { font-weight: 600; }
+
+.hw-settings .group {
+  border-radius: 12px;
+  background-color: rgba(127, 127, 127, 0.09);
+  border: 1px solid rgba(127, 127, 127, 0.14);
+}
+.hw-settings .group > .row { padding: 10px 14px; min-height: 36px; }
+.hw-settings .group > .row:not(:last-child) { border-bottom: 1px solid rgba(127, 127, 127, 0.14); }
+.hw-settings .cal-row { padding: 8px; }
+
+.hw-settings image.ok { color: #30d158; }
+.hw-settings image.warn { color: #ff9f0a; }
+
+.hw-settings .error-bar {
+  padding: 10px 16px;
+  background-color: rgba(255, 69, 58, 0.18);
+}
+
+/* previews: a piece of wallpaper with cards on it */
+.hw-settings .wall {
+  border-radius: 14px;
+  padding: 14px;
+  min-height: 112px;
+  background-image: linear-gradient(135deg, #ffd6a5 0%, #fdffb6 35%, #caffbf 65%, #9bf6ff 100%);
+  background-size: cover;
+}
+.hw-settings .wall-big { padding: 28px; min-height: 180px; }
+.hw-settings .pv-card { border-radius: 18px; padding: 12px 14px; }
+.hw-settings .pv-small-card { min-width: 120px; }
+.hw-settings .pv-big { border-radius: 22px; padding: 16px; min-width: 170px; min-height: 140px; }
+.hw-settings .pv-eyebrow { font-size: 10px; font-weight: 700; }
+.hw-settings .pv-time { font-size: 30px; font-weight: 300; }
+.hw-settings .pv-time-big { font-size: 46px; font-weight: 300; }
+.hw-settings .pv-small { font-size: 12px; }
+.hw-settings .pv-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.hw-settings .pv-tickbox {
+  min-width: 13px;
+  min-height: 13px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(127, 127, 127, 0.6);
+}
+.hw-settings .pv-tickbox.pv-tick { border-color: transparent; }
+
+.hw-settings button.preset { padding: 6px; border-radius: 18px; border: 2px solid transparent; }
+.hw-settings button.preset.selected { border-color: #0a84ff; }
+.hw-settings .preset-name { font-weight: 600; }
+
+.hw-settings button.swatch {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  box-shadow: none;
+}
+.hw-settings button.swatch.selected { border-color: rgba(127, 127, 127, 0.9); box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.4); }
+.hw-settings button.swatch-auto { font-size: 11px; font-weight: 700; background-color: rgba(127, 127, 127, 0.25); }

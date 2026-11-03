@@ -163,7 +163,7 @@ impl Grid {
     }
 }
 
-fn path() -> PathBuf {
+pub fn path() -> PathBuf {
     dirs::state_dir().unwrap_or_else(std::env::temp_dir).join("hyprwidgets").join("layout.json")
 }
 

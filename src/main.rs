@@ -6,18 +6,21 @@ mod board;
 mod config;
 mod hypr;
 mod layout;
+mod settings;
+mod setup;
 mod shared;
 mod sources;
+mod theme;
 mod widgets;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
 
 use gtk4 as gtk;
 use gtk4::prelude::*;
-use gtk4::{gdk, glib};
+use gtk4::{gdk, gio, glib};
 
 use config::Config;
 use shared::Shared;
@@ -29,31 +32,96 @@ const CSS: &str = include_str!("style.css");
 /// Loaded under CSS, so our own rules still set label spacing.
 const RESET: &str = include_str!("reset.css");
 
+pub const APP_ID: &str = "ch.elyesghazel.hyprwidgets";
+
+const HELP: &str = "Usage:
+  hyprwidgets            run the widgets (already running: open the settings)
+  hyprwidgets settings   look, widgets, calendars and setup in one window
+                         (`settings setup` opens on that page)
+  hyprwidgets setup      start with Hyprland, blur, launcher entry; then start
+  hyprwidgets restart    restart the running widgets
+  hyprwidgets quit       stop them
+  hyprwidgets init       write a starter config";
+
 fn main() -> glib::ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("init") => return init(),
+        Some("settings") => return settings::run(args.get(1).cloned()),
+        Some("setup") => return setup::run(),
+        Some(action @ ("restart" | "quit")) => return remote(action),
         Some("--help" | "-h" | "help") => {
-            println!(
-                "hyprwidgets {}\n\nUsage:\n  hyprwidgets         run the widgets\n  hyprwidgets init    write a starter config to {}\n\nSetup guide: https://github.com/elyesghazel/hyprwidgets#setup",
-                env!("CARGO_PKG_VERSION"),
-                config::path().display()
-            );
+            println!("hyprwidgets {}\n\n{HELP}\n\nConfig: {}", env!("CARGO_PKG_VERSION"), config::path().display());
             return glib::ExitCode::SUCCESS;
         }
         Some("--version" | "-V") => {
             println!("hyprwidgets {}", env!("CARGO_PKG_VERSION"));
             return glib::ExitCode::SUCCESS;
         }
-        _ => {}
+        Some(other) => {
+            eprintln!("hyprwidgets: unknown command \"{other}\"\n\n{HELP}");
+            return glib::ExitCode::FAILURE;
+        }
+        None => {}
     }
 
-    let app = gtk::Application::builder()
-        .application_id("ch.elyesghazel.hyprwidgets")
-        .flags(gtk4::gio::ApplicationFlags::NON_UNIQUE)
-        .build();
+    // after a restart, wait until the old process has let go of the name
+    if std::env::var_os("HYPRWIDGETS_REEXEC").is_some() {
+        // SAFETY: single-threaded at this point
+        unsafe { std::env::remove_var("HYPRWIDGETS_REEXEC") };
+        for _ in 0..40 {
+            if !setup::running() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    // one instance: starting it again (from a launcher) opens the settings instead.
+    // HYPRWIDGETS_NON_UNIQUE lets a test session run next to the real one.
+    let flags = if std::env::var_os("HYPRWIDGETS_NON_UNIQUE").is_some() {
+        gio::ApplicationFlags::NON_UNIQUE
+    } else {
+        gio::ApplicationFlags::empty()
+    };
+    let app = gtk::Application::builder().application_id(APP_ID).flags(flags).build();
     app.connect_activate(activate);
     app.run_with_args::<&str>(&[])
+}
+
+/// Sends `action` to the running instance.
+fn remote(action: &str) -> glib::ExitCode {
+    let app = gio::Application::new(Some(APP_ID), gio::ApplicationFlags::empty());
+    if app.register(gio::Cancellable::NONE).is_err() || !app.is_remote() {
+        eprintln!("hyprwidgets isn't running");
+        return glib::ExitCode::FAILURE;
+    }
+    app.activate_action(action, None);
+    if let Some(c) = app.dbus_connection() {
+        let _ = c.flush_sync(gio::Cancellable::NONE);
+    }
+    glib::ExitCode::SUCCESS
+}
+
+/// This program again, by the name it was started with so an updated binary is picked up.
+pub fn self_cmd() -> std::process::Command {
+    let arg0 = std::env::args().next().unwrap_or_else(|| "hyprwidgets".into());
+    std::process::Command::new(arg0)
+}
+
+pub fn open_settings() {
+    match self_cmd().arg("settings").spawn() {
+        // reaped once closed, or it stays around as a zombie
+        Ok(mut child) => drop(std::thread::spawn(move || child.wait())),
+        Err(e) => eprintln!("hyprwidgets: can't open the settings: {e}"),
+    }
+}
+
+/// Replaces this process with a fresh one: the config changed in a way that needs a rebuild.
+fn reexec() {
+    use std::os::unix::process::CommandExt;
+    let err = self_cmd().env("HYPRWIDGETS_REEXEC", "1").exec();
+    eprintln!("hyprwidgets: restart failed: {err}");
 }
 
 fn init() -> glib::ExitCode {
@@ -83,11 +151,23 @@ struct App {
     /// One board per monitor connector.
     boards: RefCell<HashMap<String, Rc<Board>>>,
     monitors: Shared<hypr::Monitors>,
+    /// The config as last loaded; only its look may differ from `ctx.cfg`.
+    look: RefCell<Config>,
+    theme: gtk::CssProvider,
+}
+
+thread_local! {
+    static STARTED: Cell<bool> = const { Cell::new(false) };
 }
 
 fn activate(app: &gtk::Application) {
+    // started again while running
+    if STARTED.replace(true) {
+        open_settings();
+        return;
+    }
     let cfg = config::load();
-    load_css(&cfg);
+    let theme = load_css(&cfg);
 
     let now = Shared::new();
     now.set(chrono::Local::now());
@@ -117,7 +197,17 @@ fn activate(app: &gtk::Application) {
     // keep the app alive with no window open (all workspaces busy)
     std::mem::forget(app.hold());
 
-    let me = Rc::new(App { app: app.clone(), ctx: ctx.clone(), widgets: Rc::new(widgets), boards: RefCell::default(), monitors: Shared::new() });
+    let me = Rc::new(App {
+        app: app.clone(),
+        look: RefCell::new(ctx.cfg.clone()),
+        ctx: ctx.clone(),
+        widgets: Rc::new(widgets),
+        boards: RefCell::default(),
+        monitors: Shared::new(),
+        theme,
+    });
+    actions(app);
+    watch_config(&me);
     let (tx, rx) = async_channel::unbounded();
     hypr::watch(tx);
     me.monitors.feed(rx);
@@ -156,19 +246,14 @@ fn rebuild(me: &Rc<App>) {
     let display = gdk::Display::default().expect("no display");
     let monitors = display.monitors();
     let mut old = std::mem::take(&mut *me.boards.borrow_mut());
-    let style = match me.ctx.cfg.style.as_str() {
-        "frosted" => "frosted",
-        "solid" => "solid",
-        _ => "glass",
-    };
-    let theme = THEME.with(|t| *t.borrow());
+    let classes = theme::classes(&me.look.borrow());
     for i in 0..monitors.n_items() {
         let Some(mon) = monitors.item(i).and_downcast::<gdk::Monitor>() else { continue };
         let conn = mon.connector().map(|c| c.to_string()).unwrap_or_default();
         if !me.ctx.cfg.monitors.is_empty() && !me.ctx.cfg.monitors.contains(&conn) {
             continue;
         }
-        let board = old.remove(&conn).unwrap_or_else(|| Board::new(&me.app, &me.ctx, &me.widgets, &mon, &[theme, style]));
+        let board = old.remove(&conn).unwrap_or_else(|| Board::new(&me.app, &me.ctx, &me.widgets, &mon, &classes));
         me.boards.borrow_mut().insert(conn, board);
     }
     for (_, b) in old {
@@ -214,15 +299,69 @@ fn set_shown(win: &gtk::ApplicationWindow, show: bool) {
     }
 }
 
-fn load_css(cfg: &Config) {
-    let dark = match cfg.appearance.as_str() {
-        "light" => false,
-        "dark" => true,
-        _ => !std::process::Command::new("gsettings")
-            .args(["get", "org.gnome.desktop.interface", "color-scheme"])
-            .output()
-            .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains("light")),
+fn actions(app: &gtk::Application) {
+    let add = |name: &str, f: fn(&gtk::Application)| {
+        let a = gio::SimpleAction::new(name, None);
+        let app2 = app.clone();
+        a.connect_activate(move |_, _| f(&app2));
+        app.add_action(&a);
     };
+    add("restart", |_| reexec());
+    add("quit", |app| app.quit());
+    add("settings", |_| open_settings());
+}
+
+/// Applies config.toml as soon as it's saved: the look in place, anything else by restarting.
+fn watch_config(me: &Rc<App>) {
+    let _ = std::fs::create_dir_all(config::dir());
+    let file = gio::File::for_path(config::path());
+    let Ok(monitor) = file.monitor_file(gio::FileMonitorFlags::WATCH_MOVES, gio::Cancellable::NONE) else { return };
+    let pending: Rc<Cell<Option<glib::SourceId>>> = Rc::default();
+    let me = me.clone();
+    monitor.connect_changed(move |_, _, _, _| {
+        // editors write in several steps; act once it settles
+        if let Some(id) = pending.take() {
+            id.remove();
+        }
+        let (me, pending2) = (me.clone(), pending.clone());
+        pending.set(Some(glib::timeout_add_local_once(Duration::from_millis(300), move || {
+            pending2.set(None);
+            reload(&me);
+        })));
+    });
+    std::mem::forget(monitor);
+}
+
+fn reload(me: &Rc<App>) {
+    let new = match config::try_load() {
+        Ok(c) => c,
+        // half-written by hand: keep what's running
+        Err(e) => return eprintln!("hyprwidgets: {e}"),
+    };
+    if new == *me.look.borrow() {
+        return;
+    }
+    if !me.ctx.cfg.same_but_look(&new) {
+        eprintln!("hyprwidgets: config changed, restarting");
+        reexec();
+        return;
+    }
+    eprintln!("hyprwidgets: new look applied");
+    me.theme.load_from_string(&theme::css(&new));
+    let classes = theme::classes(&new);
+    for b in me.boards.borrow().values() {
+        for c in ["dark", "light"].iter().chain(theme::STYLES) {
+            b.win.remove_css_class(c);
+        }
+        for c in classes {
+            b.win.add_css_class(c);
+        }
+    }
+    *me.look.borrow_mut() = new;
+}
+
+/// Loads the stylesheets; returns the one generated from the config's look.
+fn load_css(cfg: &Config) -> gtk::CssProvider {
     let display = gdk::Display::default().expect("no display");
     let reset = gtk::CssProvider::new();
     reset.load_from_string(RESET);
@@ -232,17 +371,15 @@ fn load_css(cfg: &Config) {
     // above ~/.config/gtk-4.0/gtk.css (USER priority), or a system theme like Catppuccin
     // paints the window background and restyles the buttons
     gtk::style_context_add_provider_for_display(&display, &provider, gtk::STYLE_PROVIDER_PRIORITY_USER + 2);
+    let theme = gtk::CssProvider::new();
+    theme.load_from_string(&theme::css(cfg));
+    gtk::style_context_add_provider_for_display(&display, &theme, gtk::STYLE_PROVIDER_PRIORITY_USER + 3);
     // a user stylesheet goes on top
     let user = config::dir().join("style.css");
     if user.exists() {
         let p = gtk::CssProvider::new();
         p.load_from_path(&user);
-        gtk::style_context_add_provider_for_display(&display, &p, gtk::STYLE_PROVIDER_PRIORITY_USER + 3);
+        gtk::style_context_add_provider_for_display(&display, &p, gtk::STYLE_PROVIDER_PRIORITY_USER + 4);
     }
-    THEME.with(|t| *t.borrow_mut() = if dark { "dark" } else { "light" });
-}
-
-thread_local! {
-    /// "dark" or "light", picked once at start.
-    static THEME: RefCell<&'static str> = const { RefCell::new("dark") };
+    theme
 }

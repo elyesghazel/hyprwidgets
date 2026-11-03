@@ -416,6 +416,13 @@ impl Board {
                 glib::idle_add_local_once(move || board.commit(&name, Item { collapsed: !item.collapsed, ..item }));
             });
         }
+        list.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
+        let b = entry("Settings…", false);
+        let pop2 = pop.clone();
+        b.connect_clicked(move |_| {
+            pop2.popdown();
+            crate::open_settings();
+        });
         pop.set_child(Some(&list));
         pop.set_parent(&frame.root);
         pop.connect_closed(|p| {

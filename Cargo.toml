@@ -18,6 +18,7 @@ rrule = "0.14.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 toml = "1.1.8"
+toml_edit = "0.25.17"
 ureq = "3.5.1"
 
 [profile.release]

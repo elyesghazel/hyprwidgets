@@ -220,6 +220,10 @@ impl Hypr {
             added.push("float the settings window");
             s += "hl.window_rule({\n    name   = \"hyprwidgets-settings\",\n    match  = { class = \"^ch\\\\.elyesghazel\\\\.hyprwidgets\\\\.settings$\" },\n    float  = true,\n    size   = \"920 660\",\n    center = true,\n})\n";
         }
+        let unchanged = fs::read_to_string(self.own()).is_ok_and(|old| old == s) && self.linked();
+        if unchanged {
+            return Ok(Vec::new());
+        }
         fs::write(self.own(), s).map_err(|e| format!("{}: {e}", self.own().display()))?;
         if !self.linked() {
             let mut text = fs::read_to_string(&self.main).map_err(|e| e.to_string())?;
@@ -271,7 +275,7 @@ pub fn run() -> glib::ExitCode {
     match Hypr::detect() {
         None => warn("no Hyprland config found (~/.config/hypr); add autostart and blur by hand, see the README"),
         Some(h) => match h.apply() {
-            Ok(added) if added.is_empty() => ok("Hyprland already starts and blurs the widgets"),
+            Ok(added) if added.is_empty() => ok("Hyprland: already set up"),
             Ok(added) => ok(&format!("Hyprland ({}): {}", h.own().display(), added.join(", "))),
             Err(e) => {
                 warn(&format!("Hyprland: {e}"));

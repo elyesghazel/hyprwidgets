@@ -6,6 +6,8 @@
 
 <p align="center">Interactive desktop widgets for Hyprland. They sit on your wallpaper and show up when a workspace is empty.</p>
 
+<p align="center"><b>Install:</b> <code>curl -fsSL https://raw.githubusercontent.com/elyesghazel/hyprwidgets/main/get.sh | sh</code></p>
+
 <p align="center">
   <img src="assets/screenshot.png" width="380" alt="Clock, weather, calendar and reminders widgets">
 </p>
@@ -29,19 +31,52 @@ All of that is remembered in `~/.local/state/hyprwidgets/layout.json`.
 
 ## Install
 
-You need Hyprland, GTK 4, `gtk4-layer-shell`, and Rust to build. `playerctl` is optional (for the media widget).
+```sh
+curl -fsSL https://raw.githubusercontent.com/elyesghazel/hyprwidgets/main/get.sh | sh
+```
+
+It builds hyprwidgets into `~/.local/bin` and runs `hyprwidgets setup`, which:
+
+- starts it with Hyprland and blurs behind the cards (in `~/.config/hypr/hyprwidgets-setup.lua` or `.conf`, loaded from your main config; anything you already have is left alone),
+- adds **Hyprwidgets** and **Hyprwidgets Settings** to your app launcher,
+- writes a starter config and starts the widgets.
+
+On Arch it installs GTK 4, `gtk4-layer-shell` and Rust first. Elsewhere it tells you the package command. `playerctl` is optional (for the media widget). Run the same line again to update; `… | sh -s -- --uninstall` removes it.
+
+<details>
+<summary>By hand</summary>
 
 ```sh
-# Arch
-sudo pacman -S --needed gtk4 gtk4-layer-shell playerctl rust
-
+sudo pacman -S --needed gtk4 gtk4-layer-shell playerctl rust   # Arch
 git clone https://github.com/elyesghazel/hyprwidgets
 cd hyprwidgets
 cargo build --release
 install -Dm755 target/release/hyprwidgets ~/.local/bin/hyprwidgets
+hyprwidgets setup
 ```
+</details>
 
-## Setup
+## Settings
+
+Open **Hyprwidgets Settings** from your launcher, run `hyprwidgets settings`, right-click a card and pick **Settings…**, or start `hyprwidgets` again while it's running.
+
+- **Look**: themes (Midnight, Smoke, Clear, Graphite, Daylight, Paper) previewed on your own wallpaper, or set dark/light, glass/frosted/solid, opacity and an accent color yourself. The desktop follows as you change it.
+- **Widgets**: which cards are on the desktop, when they show, clock, weather place.
+- **Calendars**: add your iCal links.
+- **Setup**: checks autostart, blur, the launcher entries and Reminders, and fixes what's missing.
+
+Everything is saved to `~/.config/hyprwidgets/config.toml` (your comments stay), and the widgets pick up a saved file right away, whether the settings or your editor saved it.
+
+| Command | |
+|---|---|
+| `hyprwidgets` | run the widgets; already running: open the settings |
+| `hyprwidgets settings [look\|widgets\|calendars\|setup]` | the settings window |
+| `hyprwidgets setup` | autostart, blur, launcher entries, start |
+| `hyprwidgets restart` / `quit` | restart or stop the running widgets |
+
+## Setup in detail
+
+The settings cover the usual things. The config file and the sections below cover the rest.
 
 ### 1. Write a config
 
@@ -55,6 +90,7 @@ Every key is optional and explained in [`config.example.toml`](config.example.to
 widgets = ["clock", "weather", "calendar", "reminders", "media"]
 position = "top-left"     # the corner new widgets fill from; drag cards to move them
 style = "glass"           # frosted, solid
+opacity = 0.7             # higher reads better on bright wallpapers
 show = "empty"            # "always" keeps them up behind your windows
 
 [weather]
@@ -63,7 +99,7 @@ location = "Zurich"
 
 ### 2. Hyprland: autostart and blur
 
-Start it with Hyprland, and let Hyprland blur behind the cards for the frosted-glass look.
+`hyprwidgets setup` does this for you. By hand: start it with Hyprland, and let Hyprland blur behind the cards for the frosted-glass look.
 
 **Lua config** (`hyprland.lua`):
 
@@ -183,7 +219,7 @@ open = "https://pulse.example.com"
 
 ## Styling
 
-The look is built in, with light and dark variants (`appearance = "auto"` follows the GNOME color scheme). To change anything, put CSS in `~/.config/hyprwidgets/style.css`. It loads on top of the [built-in stylesheet](src/style.css), so you can use the same class names:
+Themes, opacity and the accent color are in the settings (`appearance`, `style`, `opacity`, `accent` in the config; `appearance = "auto"` follows the GNOME color scheme). To change anything else, put CSS in `~/.config/hyprwidgets/style.css`. It loads on top of the [built-in stylesheet](src/style.css), so you can use the same class names:
 
 ```css
 /* bigger, rounder cards */
@@ -218,8 +254,9 @@ pub const REGISTRY: &[(&str, Constructor)] = &[
 
 ## Troubleshooting
 
-- **A card is stuck somewhere odd**: delete `~/.local/state/hyprwidgets/layout.json` and restart.
-- **Nothing shows**: the widgets only appear on workspaces without windows. Switch to an empty one, or set `show = "always"`. Run `hyprwidgets` in a terminal to see errors.
+- **A card is stuck somewhere odd**: Settings → Setup → Card positions → Reset.
+- **Hard to read on a bright wallpaper**: raise the opacity in Settings → Look, or pick Smoke or Graphite.
+- **Nothing shows**: the widgets only appear on workspaces without windows. Switch to an empty one, or set `show = "always"`. Errors go to `~/.local/state/hyprwidgets/log` when it was started by setup or the settings; or run `hyprwidgets quit; hyprwidgets` in a terminal.
 - **Wrong monitor**: `monitors = ["DP-1"]` limits them to the listed outputs (`hyprctl monitors` shows the names).
 - **Calendar is empty or says it can't load**: open the `.ics` address in a browser. It should download a file starting with `BEGIN:VCALENDAR`.
 - **Weather can't find a place**: use the English name, or set `latitude` and `longitude`.

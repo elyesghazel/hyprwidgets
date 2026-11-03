@@ -66,7 +66,8 @@ fn main() -> glib::ExitCode {
     }
 
     // after a restart, wait until the old process has let go of the name
-    if std::env::var_os("HYPRWIDGETS_REEXEC").is_some() {
+    let restarted = std::env::var_os("HYPRWIDGETS_REEXEC").is_some();
+    if restarted {
         // SAFETY: single-threaded at this point
         unsafe { std::env::remove_var("HYPRWIDGETS_REEXEC") };
         for _ in 0..40 {
@@ -85,6 +86,10 @@ fn main() -> glib::ExitCode {
         gio::ApplicationFlags::empty()
     };
     let app = gtk::Application::builder().application_id(APP_ID).flags(flags).build();
+    // someone else started the widgets meanwhile: leave it to them, without opening the settings
+    if restarted && app.register(gio::Cancellable::NONE).is_ok() && app.is_remote() {
+        return glib::ExitCode::SUCCESS;
+    }
     app.connect_activate(activate);
     app.run_with_args::<&str>(&[])
 }
@@ -99,6 +104,17 @@ fn remote(action: &str) -> glib::ExitCode {
     app.activate_action(action, None);
     if let Some(c) = app.dbus_connection() {
         let _ = c.flush_sync(gio::Cancellable::NONE);
+    }
+    if action == "restart" {
+        // back up before returning, so a `setup` right after doesn't start a second one
+        drop(app);
+        std::thread::sleep(Duration::from_millis(300));
+        for _ in 0..30 {
+            if setup::running() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
     }
     glib::ExitCode::SUCCESS
 }

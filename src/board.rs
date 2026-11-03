@@ -27,6 +27,8 @@ pub struct Board {
     widgets: Widgets,
     monitor: gdk::Monitor,
     cards: RefCell<HashMap<String, (Frame, Size)>>,
+    /// The input region last set, as rectangles.
+    region: RefCell<Vec<(i32, i32, i32, i32)>>,
     gesture: RefCell<Option<Gesture>>,
 }
 
@@ -87,16 +89,38 @@ impl Board {
             widgets: widgets.clone(),
             monitor: monitor.clone(),
             cards: RefCell::default(),
+            region: RefCell::default(),
             gesture: RefCell::default(),
         });
         board.gestures();
         board.sync();
         {
             let b = Rc::downgrade(&board);
+            // at map time the cards aren't laid out yet and the region comes out empty, which
+            // lets every click through to the wallpaper: set it again once they are
             board.win.connect_map(move |_| {
                 if let Some(b) = b.upgrade() {
+                    b.region.borrow_mut().clear();
+                }
+                for ms in [0, 60, 400] {
+                    let b = b.clone();
+                    glib::timeout_add_local_once(Duration::from_millis(ms), move || {
+                        if let Some(b) = b.upgrade() {
+                            b.update_input_region();
+                        }
+                    });
+                }
+            });
+        }
+        {
+            // a card that shows or hides itself (media) changes the region too
+            let b = Rc::downgrade(&board);
+            glib::timeout_add_local(Duration::from_secs(2), move || {
+                let Some(b) = b.upgrade() else { return glib::ControlFlow::Break };
+                if b.win.is_mapped() {
                     b.update_input_region();
                 }
+                glib::ControlFlow::Continue
             });
         }
         board
@@ -190,21 +214,28 @@ impl Board {
     /// Clicks outside the cards go to whatever is below.
     fn update_input_region(&self) {
         let Some(surface) = self.win.surface() else { return };
-        let region = gtk::cairo::Region::create();
+        let mut rects = Vec::new();
         for (f, _) in self.cards.borrow().values() {
             if !f.root.is_visible() {
                 continue;
             }
-            if let Some(b) = f.root.compute_bounds(&self.win) {
-                let _ = region.union_rectangle(&gtk::cairo::RectangleInt::new(
-                    b.x() as i32 - 4,
-                    b.y() as i32 - 4,
-                    b.width() as i32 + 8,
-                    b.height() as i32 + 8,
-                ));
+            if let Some(b) = f.root.compute_bounds(&self.win).filter(|b| b.width() > 0.0) {
+                rects.push((b.x() as i32 - 4, b.y() as i32 - 4, b.width() as i32 + 8, b.height() as i32 + 8));
             }
         }
+        // nothing laid out yet: keep the old region rather than an empty one
+        if rects.is_empty() && !self.cards.borrow().values().all(|(f, _)| !f.root.is_visible()) {
+            return;
+        }
+        if *self.region.borrow() == rects {
+            return;
+        }
+        let region = gtk::cairo::Region::create();
+        for &(x, y, w, h) in &rects {
+            let _ = region.union_rectangle(&gtk::cairo::RectangleInt::new(x, y, w, h));
+        }
         surface.set_input_region(Some(&region));
+        *self.region.borrow_mut() = rects;
     }
 
     /// Which card (by name) a point on the board belongs to, and whether it's on its resize

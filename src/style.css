@@ -1,0 +1,215 @@
+/* hyprwidgets: frosted cards in the spirit of macOS desktop widgets.
+   Override anything in ~/.config/hyprwidgets/style.css. Hyprland blurs behind the cards when
+   the layer rule from the setup guide is in place. */
+
+window.hyprwidgets {
+  background: transparent;
+  font-family: "Inter", "SF Pro Display", "Adwaita Sans", "Cantarell", sans-serif;
+  font-feature-settings: "tnum", "cv11";
+  -gtk-icon-style: symbolic;
+}
+
+/* ── palette ─────────────────────────────────────────── */
+window.hyprwidgets.dark {
+  color: rgba(255, 255, 255, 0.96);
+}
+window.hyprwidgets.light {
+  color: #1d1d1f;
+}
+
+.root {
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+  padding: 4px 4px 12px 4px; /* room for the card shadows */
+}
+.root.shown {
+  opacity: 1;
+}
+
+/* ── cards ───────────────────────────────────────────── */
+.card {
+  border-radius: 22px;
+  padding: 16px;
+  transition: background-color 150ms ease;
+}
+.dark .card {
+  background-color: rgba(30, 30, 32, 0.58);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+.light .card {
+  background-color: rgba(255, 255, 255, 0.62);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+.card.small {
+  min-width: 138px;   /* 170 with padding */
+  min-height: 138px;
+}
+.card.wide {
+  min-width: 324px;   /* two small cards and the gap */
+}
+
+/* ── type ────────────────────────────────────────────── */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.card-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+.small { font-size: 12px; }
+.tiny  { font-size: 10.5px; }
+.dark .dim  { color: rgba(235, 235, 245, 0.6); }
+.light .dim { color: rgba(60, 60, 67, 0.62); }
+
+.red    { color: #ff453a; }
+.orange { color: #ff9f0a; }
+.light .red    { color: #ff3b30; }
+.light .orange { color: #f08a00; }
+.dark .accent  { color: #0a84ff; }
+.light .accent { color: #007aff; }
+
+/* ── clock ───────────────────────────────────────────── */
+.clock-time {
+  font-size: 40px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  margin-bottom: -2px;
+}
+.clock-time.seconds { font-size: 29px; }
+.clock-date {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ── weather: a soft sky, like the Weather app ───────── */
+.card.weather {
+  background-image: linear-gradient(170deg, rgba(74, 144, 226, 0.82), rgba(38, 98, 186, 0.82));
+  color: white;
+}
+.card.weather.night {
+  background-image: linear-gradient(170deg, rgba(36, 48, 84, 0.86), rgba(16, 22, 44, 0.86));
+}
+.card.weather .dim { color: rgba(255, 255, 255, 0.78); }
+.weather-place { font-size: 13px; font-weight: 600; }
+.weather-temp  { font-size: 40px; font-weight: 300; margin-top: -2px; }
+.weather-cond  { font-size: 12px; font-weight: 600; margin-top: 4px; }
+.weather-range { font-size: 12px; font-weight: 500; }
+
+/* ── calendar ────────────────────────────────────────── */
+.card.calendar { min-height: 138px; }
+.cal-today { min-width: 88px; }
+.cal-day {
+  font-size: 44px;
+  font-weight: 300;
+  margin-top: -4px;
+}
+.cal-heading {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.cal-heading.gap { margin-top: 6px; }
+.cal-event {
+  border-radius: 8px;
+  padding: 3px 6px 3px 0;
+  transition: background-color 120ms ease;
+}
+.dark .cal-event:hover  { background-color: rgba(255, 255, 255, 0.06); }
+.light .cal-event:hover { background-color: rgba(0, 0, 0, 0.04); }
+.cal-bar { border-radius: 2px; min-width: 3px; }
+.cal-title { font-size: 13px; font-weight: 600; }
+
+/* ── reminders ───────────────────────────────────────── */
+.rem-count { font-size: 22px; font-weight: 600; }
+.rem-list { margin-top: 8px; }
+.rem-row {
+  padding: 6px 0;
+  transition: opacity 300ms ease;
+}
+.dark .rem-row  { border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.light .rem-row { border-bottom: 1px solid rgba(0, 0, 0, 0.06); }
+.rem-row.leaving { opacity: 0.35; }
+.rem-title { font-size: 13px; }
+.more { margin-top: 6px; }
+
+button.rem-tick {
+  min-width: 18px;
+  min-height: 18px;
+  padding: 0;
+  margin-top: 1px;
+  border-radius: 999px;
+  background: none;
+  box-shadow: none;
+  transition: all 200ms ease;
+}
+.dark button.rem-tick  { border: 1.5px solid rgba(235, 235, 245, 0.35); }
+.light button.rem-tick { border: 1.5px solid rgba(60, 60, 67, 0.3); }
+button.rem-tick:hover { border-color: #ff9f0a; }
+button.rem-tick.done {
+  background-color: #ff9f0a;
+  border-color: #ff9f0a;
+  box-shadow: inset 0 0 0 3px rgba(30, 30, 32, 0.9);
+}
+.light button.rem-tick.done { box-shadow: inset 0 0 0 3px white; }
+
+entry.rem-entry {
+  margin-top: 10px;
+  min-height: 30px;
+  border-radius: 10px;
+  border: none;
+  box-shadow: none;
+  font-size: 13px;
+}
+.dark entry.rem-entry  { background-color: rgba(255, 255, 255, 0.07); color: white; }
+.light entry.rem-entry { background-color: rgba(0, 0, 0, 0.05); }
+entry.rem-entry:focus-within { box-shadow: 0 0 0 2px rgba(255, 159, 10, 0.55); }
+entry.rem-entry image { opacity: 0.6; }
+
+/* ── media ───────────────────────────────────────────── */
+.media-art { border-radius: 12px; }
+.dark .media-art  { background-color: rgba(255, 255, 255, 0.08); }
+.light .media-art { background-color: rgba(0, 0, 0, 0.06); }
+.media-title { font-size: 15px; font-weight: 600; }
+
+progressbar.media-progress { margin-top: 14px; }
+progressbar.media-progress trough {
+  min-height: 4px;
+  border-radius: 2px;
+  border: none;
+}
+progressbar.media-progress progress {
+  min-height: 4px;
+  border-radius: 2px;
+  border: none;
+}
+.dark progressbar.media-progress trough     { background-color: rgba(255, 255, 255, 0.15); }
+.dark progressbar.media-progress progress   { background-color: rgba(255, 255, 255, 0.85); }
+.light progressbar.media-progress trough    { background-color: rgba(0, 0, 0, 0.1); }
+.light progressbar.media-progress progress  { background-color: rgba(0, 0, 0, 0.7); }
+
+.media-controls { margin-top: 4px; }
+button.media-btn {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 999px;
+  background: none;
+  box-shadow: none;
+  border: none;
+  color: inherit;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+button.media-btn image { -gtk-icon-size: 18px; }
+button.media-play image { -gtk-icon-size: 24px; }
+.dark button.media-btn:hover  { background-color: rgba(255, 255, 255, 0.1); }
+.light button.media-btn:hover { background-color: rgba(0, 0, 0, 0.06); }
+button.media-btn:active { transform: scale(0.92); }
+
+/* plain GTK bits that would otherwise pick up the system theme */
+.hyprwidgets tooltip { border-radius: 8px; }
+.hyprwidgets label { min-height: 0; }
+
+/* tabular figures pad a lone "1" to full width; the big numbers look better proportional */
+.clock-time, .cal-day, .weather-temp { font-feature-settings: normal; }

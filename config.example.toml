@@ -1,0 +1,46 @@
+# hyprwidgets config: ~/.config/hyprwidgets/config.toml
+# Every key is optional. Restart hyprwidgets after editing.
+
+# Top to bottom. clock and weather are small squares and sit side by side.
+widgets = ["clock", "weather", "calendar", "reminders", "media"]
+
+position = "top-left"   # top-left, top-right, bottom-left, bottom-right, left, right, center
+margin = 40             # pixels from the screen edge
+appearance = "auto"     # auto (follows the GNOME color-scheme), dark, light
+show = "empty"          # empty = only on workspaces without windows, always = keep them up
+monitors = []           # e.g. ["DP-1"]; empty = every monitor
+workspaces = []         # e.g. [1, 2]; empty = every workspace
+
+[clock]
+seconds = false
+twelve_hour = false
+
+[weather]
+location = "Zurich"     # any place name; or set latitude/longitude
+# latitude = 47.37
+# longitude = 8.54
+fahrenheit = false
+
+[calendar]
+days = 7                # how far ahead to look
+max_events = 5
+refresh = 10            # minutes
+open = "https://calendar.google.com/calendar/r/day/{y}/{m}/{d}"
+
+# One block per calendar. Any iCal (.ics) link works: Google, iCloud, Outlook, Proton, Fastmail.
+# See the setup guide for where to find the link.
+# [[calendar.sources]]
+# name = "Personal"
+# url = "https://calendar.google.com/calendar/ical/you%40gmail.com/private-xxxx/basic.ics"
+# color = "#0a84ff"
+
+[reminders]
+enabled = true
+icloud = "~/.local/bin/icloud"      # the pyicloud CLI
+session_dir = "~/.local/state"      # where pyicloud keeps its login (set as $TMPDIR)
+list_id = ""                        # one list only; empty = all, new ones go to the first list
+max_items = 6
+refresh = 5                         # minutes
+
+[media]
+hide_when_idle = true

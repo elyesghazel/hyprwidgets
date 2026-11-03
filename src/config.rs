@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 pub const DEFAULT: &str = include_str!("../config.example.toml");
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Config {
     /// Widgets top to bottom: clock, weather, calendar, reminders, media.
@@ -16,8 +16,12 @@ pub struct Config {
     pub margin: i32,
     /// dark, light, or auto (follows the GNOME color-scheme setting).
     pub appearance: String,
-    /// glass (clear, lets the wallpaper through), frosted, or solid.
+    /// glass (a pane of glass with a sheen), frosted (flat), or solid.
     pub style: String,
+    /// How opaque the glass and frosted cards are, 0 (clear) to 1 (solid).
+    pub opacity: f64,
+    /// A color like "#0a84ff" for highlights and ticked reminders. Empty keeps the defaults.
+    pub accent: String,
     /// "empty" shows the widgets only on workspaces without windows, "always" keeps them up.
     pub show: String,
     /// Monitor connector names (DP-1, HDMI-A-2). Empty means every monitor.
@@ -40,6 +44,8 @@ impl Default for Config {
             margin: 40,
             appearance: "auto".into(),
             style: "glass".into(),
+            opacity: 0.7,
+            accent: String::new(),
             show: "empty".into(),
             monitors: Vec::new(),
             workspaces: Vec::new(),
@@ -53,7 +59,7 @@ impl Default for Config {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Clock {
     pub seconds: bool,
@@ -66,7 +72,7 @@ impl Default for Clock {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Weather {
     /// A place name, looked up once with Open-Meteo's geocoder.
@@ -82,7 +88,7 @@ impl Default for Weather {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Calendar {
     pub sources: Vec<CalendarSource>,
@@ -111,7 +117,7 @@ impl Default for Calendar {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, PartialEq)]
 pub struct CalendarSource {
     pub name: String,
     /// An iCal (.ics) address: Google's "secret address in iCal format", an iCloud public
@@ -121,7 +127,7 @@ pub struct CalendarSource {
     pub color: Option<String>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Reminders {
     pub enabled: bool,
@@ -148,7 +154,7 @@ impl Default for Reminders {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Media {
     /// Hide the card while nothing is playing or paused.
@@ -161,7 +167,7 @@ impl Default for Media {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Pulse {
     /// Prints the scores as one JSON line (see the README).
@@ -186,13 +192,30 @@ pub fn path() -> PathBuf {
     dir().join("config.toml")
 }
 
+impl Config {
+    /// Equal apart from the look, which can change while running.
+    pub fn same_but_look(&self, other: &Config) -> bool {
+        let mut o = other.clone();
+        o.appearance.clone_from(&self.appearance);
+        o.style.clone_from(&self.style);
+        o.opacity = self.opacity;
+        o.accent.clone_from(&self.accent);
+        *self == o
+    }
+}
+
 pub fn load() -> Config {
+    try_load().unwrap_or_else(|e| {
+        eprintln!("hyprwidgets: {e}");
+        Config::default()
+    })
+}
+
+/// The config, or why it can't be read. A missing file is the defaults.
+pub fn try_load() -> Result<Config, String> {
     match std::fs::read_to_string(path()) {
-        Ok(text) => toml::from_str(&text).unwrap_or_else(|e| {
-            eprintln!("hyprwidgets: {}: {e}", path().display());
-            Config::default()
-        }),
-        Err(_) => Config::default(),
+        Ok(text) => toml::from_str(&text).map_err(|e| format!("{}: {e}", path().display())),
+        Err(_) => Ok(Config::default()),
     }
 }
 

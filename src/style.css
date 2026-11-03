@@ -35,47 +35,7 @@ window.hyprwidgets.light {
 /* sizes come from the grid (layout.rs): mini 77, small 170, medium 356x170, large 356 */
 .card.mini { padding: 10px; border-radius: 20px; }
 
-/* glass (default): mostly clear, Hyprland's blur does the frosting. A light top edge and a
-   soft sheen read as a pane of glass, the way macOS widgets sit on the wallpaper. */
-.glass.dark .card {
-  background-color: rgba(22, 22, 26, 0.30);
-  background-image: linear-gradient(165deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.03) 42%, rgba(255, 255, 255, 0.0) 70%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
-    0 10px 28px rgba(0, 0, 0, 0.18);
-}
-.glass.light .card {
-  background-color: rgba(255, 255, 255, 0.34);
-  background-image: linear-gradient(165deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.10) 45%, rgba(255, 255, 255, 0.0) 75%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.85),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
-    0 12px 32px rgba(0, 0, 0, 0.14);
-}
-/* text over a see-through card needs a little help on busy wallpapers */
-.glass.dark .card label { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
-
-/* frosted: the earlier, denser look */
-.frosted.dark .card {
-  background-color: rgba(30, 30, 32, 0.58);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 6px 18px rgba(0, 0, 0, 0.22);
-}
-.frosted.light .card {
-  background-color: rgba(255, 255, 255, 0.62);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 6px 18px rgba(0, 0, 0, 0.12);
-}
-
-/* solid: no transparency at all */
-.solid.dark .card {
-  background-color: #1c1c1e;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 6px 18px rgba(0, 0, 0, 0.3);
-}
-.solid.light .card {
-  background-color: #ffffff;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05), 0 6px 18px rgba(0, 0, 0, 0.12);
-}
+/* the card background (glass, frosted, solid, opacity) is generated from the config: theme.rs */
 
 /* ── frame: collapse button, collapsed pill, dragging ── */
 button.chrome {
